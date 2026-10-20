@@ -181,6 +181,7 @@ class PPOTrainerSeparateAsync(PPOTrainer):
             logger.info(
                 "[V1SepAsync] hybrid replicas disabled (actor_rollout_ref.hybrid_engine=False): "
                 f"rollout served by {len(self.standalone_server_manager.get_replicas())} standalone replicas only",
+                flush=True,
             )
 
     def _compute_old_log_prob(self, batch: KVBatchMeta, metrics: dict) -> KVBatchMeta:

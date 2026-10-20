@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One run of an arggym_verl config on verl's main_ppo entry point.
+# One run of an arggym_verl config: verl's main_ppo with the served-policy check (arggym_verl.main).
 #
 #   scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b [hydra overrides ...]
 #   RUN=smoke scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b trainer.total_training_steps=3
@@ -34,7 +34,7 @@ export PATH="$ROOT/.venv/bin:$PATH"
   echo "arggym $(git -C "$ARGGYM_ROOT" rev-parse HEAD) ($(git -C "$ARGGYM_ROOT" branch --show-current))"
 } > "$OUT/versions.txt"
 
-"$ROOT/.venv/bin/python" -m verl.trainer.main_ppo \
+"$ROOT/.venv/bin/python" -m arggym_verl.main \
   --config-path="$ROOT/arggym_verl/config" --config-name="$CONFIG" \
   "hydra.searchpath=[pkg://verl.trainer.config]" \
   trainer.experiment_name="$RUN" \

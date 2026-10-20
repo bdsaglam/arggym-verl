@@ -40,16 +40,22 @@ export PYTHONPATH=$PWD:$ARGGYM_ROOT
 
 ## Runs
 
-GPU 0 serves rollouts with vLLM, GPUs 1-2 train with FSDP2; verl's Ray
-scheduler places them, so the job gets all three:
+Two GPUs, each holding an FSDP2 trainer rank and a vLLM replica that serves the
+LoRA adapter (verl's hybrid engine, `trainer_mode: colocate_async`; design.md
+says why not three, and why not separate rollout GPUs):
 
 ```
-CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b
-CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b
-# a smoke run: 3 steps, dev at step 0 and at the last step
-RUN=smoke-gsm8k CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b \
+CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b
+CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh arggym-qwen3.5-4b
+# smoke: 3 steps, dev at step 0 and at the last step
+RUN=smoke-gsm8k CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b \
     trainer.total_training_steps=3 trainer.resume_mode=disable
 ```
+
+`run.sh` calls `arggym_verl.main`, which is `verl.trainer.main_ppo` plus a
+per-step check that vLLM serves the trained adapter (`served/*` metrics; the
+run stops if vLLM is closer to the base model). The smoke checklist with the
+expected step-1 values is in design.md.
 
 Any `key=value` after the config name is a Hydra override of verl's config.
 Everything lands in `outputs/<run>/`: `checkpoints/global_step_N`, `rollouts/`
@@ -69,8 +75,9 @@ the share of groups without signal per weight version.
 
 What to read: `val-core/<task>/acc/mean@N` (dev success, the selection
 metric), `val-aux/<task>/truncated/mean@N`, `critic/score/mean` (training
-reward), `actor/entropy`, `rollout_corr/*` (importance weights:
-`rollout_is_mean`, `rollout_is_eff_sample_size`, `rollout_is_ratio_fraction_high`),
+reward), `actor/entropy`, `actor/pg_clipfrac`, `served/logp_gap_*`, `rollout_corr/*` (importance
+weights: `rollout_is_mean`, `rollout_is_eff_sample_size`,
+`rollout_is_ratio_fraction_high`), `served/z`,
 `training/off_policy/*` (staleness of the trained groups).
 
 ## Tests (CPU)

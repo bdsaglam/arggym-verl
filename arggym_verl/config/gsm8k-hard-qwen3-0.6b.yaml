@@ -31,8 +31,9 @@ data:
     enable_thinking: true
 
 actor_rollout_ref:
-  # No vLLM on the trainer GPUs: GPU 0 serves rollouts, GPUs 1-2 train, as in TRL.
-  hybrid_engine: false
+  # Rollout and training share the GPUs (verl's hybrid engine): the only layout
+  # in which verl hands vLLM the LoRA adapter itself (design.md, "LoRA").
+  hybrid_engine: true
   model:
     # Hub revision c1899de289a04d12100db370d81485cdf75e47ca, BF16 as published.
     path: ${oc.env:HOME}/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca
@@ -40,9 +41,10 @@ actor_rollout_ref:
     lora_alpha: 32
     target_modules: all-linear
     lora:
-      # Forced by verl: the checkpoint-engine sync that async training uses sends
-      # merged weights only (design.md, "LoRA").
-      merge: true
+      # vLLM serves the adapter (its LoRA kernels) over the BF16 base weights,
+      # never a merged weight: no part of the update is rounded into the base.
+      # verl's canonical LoRA recipe, examples/tuning/lora/run_qwen3_8b_fsdp.sh.
+      merge: false
     enable_gradient_checkpointing: true
     use_remove_padding: true
   actor:
@@ -61,6 +63,8 @@ actor_rollout_ref:
     use_dynamic_bsz: true
     # Tokens per micro-batch per GPU; holds one 8,192-token completion with room.
     ppo_max_token_len_per_gpu: 16384
+    # Precision (design.md): FP32 master weights, LoRA factors and AdamW state
+    # (fsdp_config.model_dtype fp32), BF16 compute (FSDP2 mixed precision).
     # DAPO: token-level mean, clip 0.2 / 0.28, no KL term.
     loss_agg_mode: token-mean
     clip_ratio_low: 0.2
@@ -71,14 +75,17 @@ actor_rollout_ref:
   rollout:
     name: vllm
     mode: async
-    # The standalone rollout pool: one GPU, one replica.
-    nnodes: 1
-    n_gpus_per_node: 1
+    # One vLLM replica per training GPU, colocated with FSDP, slept during updates.
     tensor_model_parallel_size: 1
-    gpu_memory_utilization: 0.85
+    gpu_memory_utilization: 0.5
+    # BF16, the published precision; the adapter is applied in BF16 too.
+    dtype: bfloat16
     # The model's whole context, as the TRL server's max_model_len.
     max_model_len: 40960
+    # The LoRA recipe's two rollout flags: vLLM loads the real base weights at
+    # start, so each sync sends the adapter alone, gathered layer by layer.
     load_format: safetensors
+    layered_summon: true
     n: 8
     # Training rollouts at T=1, no truncation, no penalty.
     temperature: 1.0
@@ -89,8 +96,6 @@ actor_rollout_ref:
     logprobs_mode: processed_logprobs
     log_prob_use_dynamic_bsz: true
     log_prob_max_token_len_per_gpu: 16384
-    checkpoint_engine:
-      backend: nccl
     # Dev: the model card's sampling, 4 samples per question.
     val_kwargs:
       temperature: 0.6
@@ -106,9 +111,12 @@ algorithm:
   # Group mean baseline, no std scaling (TRL scale_rewards: none).
   norm_adv_by_std_in_grpo: false
   use_kl_in_reward: false
-  # Decoupled PPO: the trainer recomputes pi_old, and the per-token weight
-  # pi_old / pi_rollout, truncated at 2, multiplies the loss (TRL's
-  # vllm_importance_sampling_mode token_truncate, cap 2).
+  # Decoupled PPO: the trainer recomputes pi_old in its own precision, so the
+  # PPO ratio pi_theta / pi_old is 1 at the first (only) epoch and the clip
+  # zeroes no gradient for an engine mismatch; the vLLM gap enters only as the
+  # per-token weight pi_old / pi_rollout, truncated at 2, multiplying the loss
+  # (TRL's vllm_importance_sampling_mode token_truncate, cap 2).
+  # bypass_mode: true would put vLLM's log-probs in the ratio's denominator.
   rollout_correction:
     rollout_is: token
     rollout_is_threshold: 2.0
@@ -124,10 +132,12 @@ reward:
 trainer:
   use_v1: true
   v1:
-    # Rollout and training overlap on separate GPUs.
-    trainer_mode: separate_async
-    separate_async:
-      parameter_sync_step: 1
+    # verl's async mode for the hybrid engine: one batch generated ahead, and
+    # completions cut by a weight sync resume under the new weights (partial
+    # rollout) instead of being waited for. Generation pauses while the trainer
+    # updates; rollout and training do not overlap in time.
+    trainer_mode: colocate_async
+    colocate_async:
       num_warmup_batches: 1
     sampler:
       # One step off-policy at most: a group submitted before the previous
@@ -137,6 +147,8 @@ trainer:
       max_off_policy_threshold: 2
       max_off_policy_strategy: wait
   nnodes: 1
+  # 128 completions split evenly over 2 ranks; over 3, verl would pad the batch
+  # to lcm(3, 128) = 384 rows (trainer_base._get_required_batch_multiple).
   n_gpus_per_node: 2
   total_epochs: 1000
   total_training_steps: 200

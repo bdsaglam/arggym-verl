@@ -28,15 +28,35 @@ def agent_loops(cfg):
 def test_batch_arithmetic(cfg, trl):
     trl_cfg, _ = trl
     g, a, r, t = trl_cfg["grpo"], cfg.actor_rollout_ref.actor, cfg.actor_rollout_ref.rollout, cfg.trainer
-    # separate_async's invariant (verl/trainer/ppo/v1/trainer_separate_async.py).
-    assert cfg.data.train_batch_size == t.v1.separate_async.parameter_sync_step * a.ppo_mini_batch_size
     # One optimizer step per 16 prompts x 8 completions, as in TRL.
     assert cfg.data.train_batch_size == trl_cfg["prompts_per_step"]
     assert r.n == g["num_generations"]
     assert cfg.data.train_batch_size // a.ppo_mini_batch_size * a.ppo_epochs == g["num_iterations"]
-    # 2 trainer GPUs + 1 rollout GPU.
-    assert t.n_gpus_per_node + r.n_gpus_per_node * r.nnodes == 3
-    assert not cfg.actor_rollout_ref.hybrid_engine
+    # The batch splits evenly over the ranks, so verl pads nothing in.
+    assert cfg.data.train_batch_size * r.n % (t.n_gpus_per_node * t.nnodes) == 0
+    assert a.ppo_mini_batch_size * r.n % (t.n_gpus_per_node * t.nnodes) == 0
+    assert (t.n_gpus_per_node * t.nnodes) % r.tensor_model_parallel_size == 0
+
+
+def test_async_mode_with_adapter_serving(cfg):
+    m, r = cfg.actor_rollout_ref.model, cfg.actor_rollout_ref.rollout
+    # Only the hybrid engine's (naive) weight sync sends vLLM the adapter.
+    assert cfg.actor_rollout_ref.hybrid_engine
+    assert cfg.trainer.v1.trainer_mode == "colocate_async"
+    assert r.checkpoint_engine.backend == "naive"
+    assert not m.lora.merge
+    # verl's LoRA recipe (examples/tuning/lora/run_qwen3_8b_fsdp.sh).
+    assert r.load_format == "safetensors" and r.layered_summon
+    assert r.dtype == "bfloat16"
+
+
+def test_ppo_ratio_uses_the_trainers_old_log_probs(cfg):
+    """No phantom clipping: vLLM's log-probs never sit in the PPO ratio's denominator."""
+    rc = cfg.algorithm.rollout_correction
+    assert rc.bypass_mode is False
+    assert cfg.actor_rollout_ref.actor.ppo_epochs == 1
+    assert cfg.actor_rollout_ref.rollout.calculate_log_probs
+    assert cfg.actor_rollout_ref.actor.fsdp_config.model_dtype == "fp32"
 
 
 def test_lengths(cfg, trl):
