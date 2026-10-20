@@ -116,11 +116,12 @@ directly. The run records the checkout's commit and branch.
 
 ## GPU smoke status
 
-Two attempts on 2026-10-20 got through Ray start-up, FSDP2 model and LoRA
-init, the reward loop and the checkpoint engine, then stopped on environment
-and upstream faults, both fixed since: the flash-attn wheel (setup above) and
-the `flush=True` bug. A third run was stopped when the GPUs were reassigned,
-before the step-0 dev eval. No rollout, dev score or training step has run yet.
+Three attempts on 2026-10-20 got through Ray start-up, FSDP2 model and LoRA
+init, the reward loop and the checkpoint engine. Each then stopped on an
+environment or upstream fault, and all three faults are fixed now: the
+flash-attn wheel, which broke both the trainer and vLLM (setup above), and then
+the `flush=True` bug. The GPUs were then reassigned. No rollout, dev score or
+training step has run yet.
 
 ## Not checked
 
