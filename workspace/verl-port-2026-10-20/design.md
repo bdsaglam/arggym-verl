@@ -26,7 +26,10 @@ config: a reward manager by file path (`reward.reward_manager.source=importlib`,
 `docs/advance/reward_loop.rst`), agent loops by a YAML of `_target_`s
 (`rollout.agent.agent_loop_config_path`, `verl/experimental/agent_loop/agent_loop.py:534`).
 So the repo is the tag with our package beside verl's, and no verl file is
-edited. `scripts/arggym/setup.sh` syncs verl's lock as committed (`torch
+edited but one: the `hybrid_engine=False` branch of
+`PPOTrainerSeparateAsync._setup` passed `flush=True` to `logger.info` and
+raised `TypeError` before the first step (commit `f9b9654f`, a one-line
+upstream bug fix, its own commit). `scripts/arggym/setup.sh` syncs verl's lock as committed (`torch
 2.11.0+cu130`, `vllm 0.24.0`, `transformers 5.9.0`, `peft 0.19.1`, `ray
 2.55.1`), then adds `python-argumentation` (ArgGYM's scorer dependency) and
 `trackio` with `uv pip`. Re-locking with them as a new extra was tried and
@@ -110,6 +113,14 @@ directly. The run records the checkout's commit and branch.
    `rl-003` makes truncated pay 0 in TRL too.
 6. **Checkpoint state.** verl's FSDP checkpoint holds the whole model state,
    not only the adapter; about 2.5 GB a step for Qwen3-0.6B.
+
+## GPU smoke status
+
+Two attempts on 2026-10-20 got through Ray start-up, FSDP2 model and LoRA
+init, the reward loop and the checkpoint engine, then stopped on environment
+and upstream faults, both fixed since: the flash-attn wheel (setup above) and
+the `flush=True` bug. A third run was stopped when the GPUs were reassigned,
+before the step-0 dev eval. No rollout, dev score or training step has run yet.
 
 ## Not checked
 
