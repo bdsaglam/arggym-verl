@@ -52,6 +52,8 @@ actor_rollout_ref:
       n: 2
     agent:
       agent_loop_config_path: ${oc.env:ARGGYM_VERL_ROOT}/arggym_verl/config/agent_loops-arggym.yaml
+  ref:
+    log_prob_max_token_len_per_gpu: 49152
 
 trainer:
   total_training_steps: 100
