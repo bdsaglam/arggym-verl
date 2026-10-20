@@ -19,7 +19,7 @@ data:
   # The eval config's 65,536 cap (evals/conf/model/hf-qwen3.5-4b.yaml) for dev;
   # training stops at 40,960 (agent_loops-arggym.yaml).
   max_response_length: 65536
-  # 8 prompts x 8 completions, as the TRL run.
+  # 8 prompts per step; completions per prompt are the GSM8K config's rollout.n.
   train_batch_size: 8
 
 actor_rollout_ref:

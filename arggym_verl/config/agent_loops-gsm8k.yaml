@@ -1,4 +1,5 @@
-# Training rollouts stop at 8,192 tokens (the TRL run's max_completion_length);
+# Training rollouts stop at 8,192 tokens (the task's training cap, as in ArgGYM's
+# rl/configs/gsm8k-hard-qwen3-0.6b-adapter.yaml);
 # dev runs to rollout.response_length, the eval config's 32,768. Temperature,
 # top-p and top-k come from rollout.* (train) and rollout.val_kwargs.* (dev).
 - name: train

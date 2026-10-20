@@ -1,10 +1,12 @@
-# GSM8K hard control on verl: the TRL run rl/configs/gsm8k-hard-qwen3-0.6b-adapter.yaml
-# (ArgGYM, branch rl-training) with verl's own GRPO, async trainer and
-# token-in/token-out rollouts. Launch with scripts/arggym/run.sh (README).
+# GSM8K hard control on verl: verl's canonical GRPO + LoRA recipe,
+# examples/tuning/lora/run_qwen3_8b_fsdp.sh, on ArgGYM's GSM8K hard task, with
+# verl's async trainer (colocate_async) and token-in/token-out rollouts. Launch
+# with scripts/arggym/run.sh (README).
 #
-# Every value that differs from verl's default is a decision; the reason is next
-# to it, and workspace/verl-port-2026-10-20/design.md lists where verl forces a
-# difference from the TRL run.
+# The task defines the data, the reward, the lengths, dev sampling and the
+# eval schedule. Everything else is the recipe's value or verl's default, with
+# two departures, each sourced where it is set: LR 3e-5 (verl's LoRA guide) and
+# the token-level IS correction (async staleness). design.md has the reasoning.
 
 defaults:
   - ppo_trainer
@@ -21,8 +23,8 @@ data:
   # The dev cap, the eval config's 32,768 (evals/conf/model/hf-qwen3-0.6b.yaml).
   # Training rollouts stop at 8,192 through their agent loop (agent_loops-gsm8k.yaml).
   max_response_length: 32768
-  # 16 prompts x 8 completions = 128 rollouts per optimizer step, as in TRL.
-  train_batch_size: 16
+  # The recipe's 64 prompts x rollout.n 5 = 320 completions per step.
+  train_batch_size: 64
   shuffle: true
   seed: 0
   truncation: error
@@ -37,7 +39,8 @@ actor_rollout_ref:
   model:
     # Hub revision c1899de289a04d12100db370d81485cdf75e47ca, BF16 as published.
     path: ${oc.env:HOME}/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca
-    lora_rank: 32
+    # The recipe's rank 64, alpha 32, on every linear layer.
+    lora_rank: 64
     lora_alpha: 32
     target_modules: all-linear
     lora:
@@ -50,28 +53,27 @@ actor_rollout_ref:
   actor:
     strategy: fsdp2
     optim:
-      lr: 2.0e-5
-      lr_scheduler_type: constant
-      lr_warmup_steps: 5
-      weight_decay: 0.0
-      clip_grad: 1.0
-    grad_clip: 1.0
-    # One optimizer step per batch of 16 prompts (TRL: num_iterations 1, one
-    # generation per step).
-    ppo_mini_batch_size: 16
+      # verl's LoRA guide raises the LR by an order of magnitude for LoRA and
+      # uses 3e-5 in its FSDP reference (docs/advance/ppo_lora.rst, "Best
+      # Practices" 1 and 3). The recipe's 3e-6 is 3x its full-FT 1e-6
+      # (examples/grpo_trainer/run_qwen3_4b_fsdp.sh), not 10x. The rest of
+      # the optimizer is verl's default, as in the recipe: constant schedule,
+      # no warmup, weight decay 0.01, grad clip 1.0.
+      lr: 3.0e-5
+    # The recipe's mini-batch of 32 prompts: two optimizer steps per batch.
+    ppo_mini_batch_size: 32
     ppo_epochs: 1
     use_dynamic_bsz: true
     # Tokens per micro-batch per GPU; holds one 8,192-token completion with room.
     ppo_max_token_len_per_gpu: 16384
     # Precision (design.md): FP32 master weights, LoRA factors and AdamW state
     # (fsdp_config.model_dtype fp32), BF16 compute (FSDP2 mixed precision).
-    # DAPO: token-level mean, clip 0.2 / 0.28, no KL term.
-    loss_agg_mode: token-mean
-    clip_ratio_low: 0.2
-    clip_ratio_high: 0.28
-    use_kl_loss: false
-    entropy_coeff: 0
-    calculate_entropy: true
+    # The recipe's KL loss against the base model (the adapter switched off);
+    # loss aggregation token-mean, clip 0.2 / 0.2 and entropy coefficient 0
+    # are verl's defaults, which the recipe keeps.
+    use_kl_loss: true
+    kl_loss_coef: 0.001
+    kl_loss_type: low_var_kl
   rollout:
     name: vllm
     mode: async
@@ -80,13 +82,13 @@ actor_rollout_ref:
     gpu_memory_utilization: 0.5
     # BF16, the published precision; the adapter is applied in BF16 too.
     dtype: bfloat16
-    # The model's whole context, as the TRL server's max_model_len.
+    # The model's whole context.
     max_model_len: 40960
     # The LoRA recipe's two rollout flags: vLLM loads the real base weights at
     # start, so each sync sends the adapter alone, gathered layer by layer.
     load_format: safetensors
     layered_summon: true
-    n: 8
+    n: 5
     # Training rollouts at T=1, no truncation, no penalty.
     temperature: 1.0
     top_p: 1.0
@@ -102,21 +104,27 @@ actor_rollout_ref:
       top_p: 0.95
       top_k: 20
       n: 4
-      do_sample: true
     agent:
       agent_loop_config_path: ${oc.env:ARGGYM_VERL_ROOT}/arggym_verl/config/agent_loops-gsm8k.yaml
+  ref:
+    # The KL reference is the actor with its adapter off (LoRA keeps the
+    # reference in the actor); its log-prob pass batches like the rollout's.
+    log_prob_use_dynamic_bsz: true
+    log_prob_max_token_len_per_gpu: 16384
 
 algorithm:
+  # GRPO with std normalization (verl's default), KL as a loss, not in the reward.
   adv_estimator: grpo
-  # Group mean baseline, no std scaling (TRL scale_rewards: none).
-  norm_adv_by_std_in_grpo: false
+  norm_adv_by_std_in_grpo: true
   use_kl_in_reward: false
-  # Decoupled PPO: the trainer recomputes pi_old in its own precision, so the
-  # PPO ratio pi_theta / pi_old is 1 at the first (only) epoch and the clip
-  # zeroes no gradient for an engine mismatch; the vLLM gap enters only as the
-  # per-token weight pi_old / pi_rollout, truncated at 2, multiplying the loss
-  # (TRL's vllm_importance_sampling_mode token_truncate, cap 2).
-  # bypass_mode: true would put vLLM's log-probs in the ratio's denominator.
+  # The one departure from the recipe without a recipe source: colocate_async
+  # trains on completions up to one weight version stale, some spanning two
+  # versions, and verl's rollout correction reweights them
+  # (docs/algo/rollout_corr.md). Decoupled mode: the trainer recomputes pi_old
+  # in its own precision, so pi_old is never vLLM's; vLLM's log-probs enter
+  # only as the per-token weight pi_old / pi_rollout, truncated at 2,
+  # multiplying the loss. bypass_mode: true would put vLLM's log-probs in the
+  # PPO ratio's denominator.
   rollout_correction:
     rollout_is: token
     rollout_is_threshold: 2.0
@@ -147,8 +155,9 @@ trainer:
       max_off_policy_threshold: 2
       max_off_policy_strategy: wait
   nnodes: 1
-  # 128 completions split evenly over 2 ranks; over 3, verl would pad the batch
-  # to lcm(3, 128) = 384 rows (trainer_base._get_required_batch_multiple).
+  # verl pads each batch to lcm(ranks, mini-batch completions)
+  # (trainer_base._get_required_batch_multiple): lcm(2, 160) = 160 divides the
+  # 320 completions, while 3 ranks would pad them to lcm(3, 160) = 480.
   n_gpus_per_node: 2
   total_epochs: 1000
   total_training_steps: 200
@@ -159,7 +168,7 @@ trainer:
   max_actor_ckpt_to_keep: null
   resume_mode: auto
   project_name: arggym-verl
-  experiment_name: gsm8k-hard-qwen3-0.6b-lr2e-5-s0
+  experiment_name: gsm8k-hard-qwen3-0.6b-lr3e-5-s0
   logger: [console, file, trackio]
   log_val_generations: 10
   default_local_dir: ${oc.env:ARGGYM_VERL_ROOT}/outputs/${trainer.experiment_name}/checkpoints
