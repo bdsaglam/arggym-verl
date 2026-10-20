@@ -1,7 +1,7 @@
 """Write a task's training and dev splits as the parquet files verl reads.
 
     python -m arggym_verl.data $ARGGYM_ROOT/rl/configs/gsm8k-hard-qwen3-0.6b-adapter.yaml \
-        --out data/gsm8k-hard data.screen.path=/abs/path/to/gsm8k-screen/qwen3-0.6b-c1899de
+        --out data/gsm8k-hard data.screen.path=$PWD/data/gsm8k-screen/qwen3-0.6b-c1899de
 
 The first argument is the TRL run's own config, read by ArgGYM's `rl.config`, and
 the rows come from ArgGYM's own selection code: `rl.gsm8k.load_splits` for
