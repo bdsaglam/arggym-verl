@@ -10,7 +10,8 @@ def cfg():
     from hydra import compose, initialize_config_dir
 
     with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
-        return compose(config_name="gsm8k-hard-qwen3-0.6b")
+        return compose(config_name="gsm8k-hard-qwen3-0.6b",
+                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
 
 
 @pytest.fixture(scope="module")

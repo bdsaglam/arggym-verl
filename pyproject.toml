@@ -189,10 +189,6 @@ megatron = [
 # because `ci` shares one resolution fork with every backend those caps would
 # drag the whole project from pandas 3.0.3 to 2.3.3. gpu_unit_tests installs it
 # by hand for that reason — do not "fix" that by moving it in here.
-# ArgGYM port (arggym_verl/): the scorer's own dependency, imported from the
-# ArgGYM checkout on PYTHONPATH, and trackio for local metrics.
-arggym = ["python-argumentation==2.0.2", "trackio"]
-
 ci = [
     "hf-transfer",           # HF_HUB_ENABLE_HF_TRANSFER=1 in the GPU test jobs
     "sglang-router==0.2.2",  # router coverage in reward_model_sglang

@@ -6,10 +6,6 @@
 # to it, and workspace/verl-port-2026-10-20/design.md lists where verl forces a
 # difference from the TRL run.
 
-hydra:
-  searchpath:
-    - pkg://verl.trainer.config
-
 defaults:
   - ppo_trainer
   - _self_

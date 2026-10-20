@@ -73,3 +73,39 @@ def test_manager_decodes_the_sampled_ids_as_trl_does():
 
     trl_text = tok.batch_decode([ids], skip_special_tokens=True)[0]
     assert gsm8k.correct(trl_text, 18.0)
+
+
+POOL_ROOT = "/home/baris/repos/ArgGYM2/.claude/worktrees/agent-a1aabb6eb720c122c/outputs/rl"
+
+
+def arggym_dev_rows():
+    from pathlib import Path
+
+    from conftest import ARGGYM_ROOT
+    from rl import config as rl_config
+    from rl import pool
+
+    if not Path(POOL_ROOT).exists():
+        pytest.skip("ArgGYM pool not found")
+    cfg = rl_config.load(str(ARGGYM_ROOT / "rl/configs/qwen3.5-4b-curriculum.yaml"),
+                         [f"output_root={POOL_ROOT}"])
+    elicit = pool.elicitation(cfg["prompt"]["elicitation"])
+    return pool.trl_rows(pool.load_split(cfg, "dev")[:6], cfg["prompt"]["template"], elicit), \
+        cfg["prompt"]["template"]
+
+
+def test_arggym_reward_matches_trl_where_trl_pays():
+    """Same scorer; where TRL returns None (truncated or refused) verl pays 0."""
+    from rl import reward as arggym_reward
+
+    rows, template = arggym_dev_rows()
+    texts = ["<think>\nhmm\n</think>\n\n<answer>yes</answer>", "no tags at all",
+             "<think>\nloop loop", "</think><answer></answer>", "<answer>A</answer>", ""]
+    ids = [[OTHER, EOS], [OTHER, EOS], [OTHER, OTHER], [OTHER, PAD], [OTHER, EOS], []]
+    trl = arggym_reward.make_reward(sorted(STOP), template, gather=lambda x: x)(
+        texts, ids, [r["row_json"] for r in rows])
+    ours = [score_completion("arggym", t, i, {"row_json": r["row_json"], "template": template},
+                             STOP) for t, i, r in zip(texts, ids, rows)]
+    for t, o in zip(trl, ours, strict=True):
+        assert o["score"] == (0.0 if t is None else t)
+    assert ours[2]["truncated"] == 1.0 and trl[2] is None

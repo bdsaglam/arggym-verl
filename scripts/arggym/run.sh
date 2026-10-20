@@ -36,6 +36,7 @@ export PATH="$ROOT/.venv/bin:$PATH"
 
 "$ROOT/.venv/bin/python" -m verl.trainer.main_ppo \
   --config-path="$ROOT/arggym_verl/config" --config-name="$CONFIG" \
+  "hydra.searchpath=[pkg://verl.trainer.config]" \
   trainer.experiment_name="$RUN" \
   ray_kwargs.ray_init.runtime_env.py_executable="$ROOT/.venv/bin/python" \
   "$@" 2>&1 | tee "$OUT/driver.log"

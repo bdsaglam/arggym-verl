@@ -1,0 +1,60 @@
+# ArgGYM on Qwen3.5-4B: the TRL run rl/configs/qwen3.5-4b-curriculum.yaml, less the
+# curriculum. Everything not set here is the GSM8K control's (same algorithm,
+# async mode, IS correction, LoRA, GPU split). Not yet run on GPU; the reward
+# follows ArgGYM's branch rl-003 once it lands (a truncated completion pays 0,
+# which is what this pipeline already pays; see arggym_verl/reward.py).
+
+defaults:
+  - gsm8k-hard-qwen3-0.6b
+  - _self_
+
+data:
+  # `python -m arggym_verl.data .../qwen3.5-4b-curriculum.yaml --out data/arggym-qwen3.5-4b`
+  # from the built pool (rl.pool): levels 1-8, all 12 tasks; dev one row per
+  # (task, level), 96 prompts.
+  train_files: ${oc.env:ARGGYM_VERL_ROOT}/data/arggym-qwen3.5-4b/train.parquet
+  val_files: ${oc.env:ARGGYM_VERL_ROOT}/data/arggym-qwen3.5-4b/dev.parquet
+  # The eval lane's prompt reserve.
+  max_prompt_length: 8192
+  # The eval config's 65,536 cap (evals/conf/model/hf-qwen3.5-4b.yaml) for dev;
+  # training stops at 40,960 (agent_loops-arggym.yaml).
+  max_response_length: 65536
+  # 8 prompts x 8 completions, as the TRL run.
+  train_batch_size: 8
+
+actor_rollout_ref:
+  model:
+    # The snapshot the stored base eval was produced with (TRL config's pin).
+    path: ${oc.env:HOME}/.cache/huggingface/hub/models--Qwen--Qwen3.5-4B/snapshots/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+    # The checkpoint is vision-language; TRL trains the text model only, so the
+    # vision tower gets no adapter and stays frozen.
+    exclude_modules: .*visual.*
+  actor:
+    freeze_vision_tower: true
+    optim:
+      lr: 1.0e-5
+    ppo_mini_batch_size: 8
+    # One 40,960-token completion plus its prompt per micro-batch.
+    ppo_max_token_len_per_gpu: 49152
+    entropy_from_logits_with_chunking: true
+  rollout:
+    max_model_len: 73728
+    log_prob_max_token_len_per_gpu: 49152
+    # The card's sampling for training rollouts, as the TRL run (presence
+    # penalty 1.5 is added by the agent loop).
+    temperature: 1.0
+    top_p: 0.95
+    top_k: 20
+    val_kwargs:
+      temperature: 1.0
+      top_p: 0.95
+      top_k: 20
+      n: 2
+    agent:
+      agent_loop_config_path: ${oc.env:ARGGYM_VERL_ROOT}/arggym_verl/config/agent_loops-arggym.yaml
+
+trainer:
+  total_training_steps: 100
+  test_freq: 20
+  save_freq: 20
+  experiment_name: arggym-qwen3.5-4b-lr1e-5-s0
