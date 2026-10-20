@@ -649,19 +649,24 @@ class vLLMHttpServer:
         except TypeError:
             prompt = prompt_kwargs
 
-        # Add lora request
-        lora_request = None
-        if self.lora_as_adapter:
-            # Make sure we also check that the lora is already loaded in the engine
-            lora_loaded = VLLM_LORA_INT_ID in await self.engine.list_loras()
-            if lora_loaded:
-                lora_request = LoRARequest(
-                    lora_name=VLLM_LORA_NAME, lora_int_id=VLLM_LORA_INT_ID, lora_path=VLLM_LORA_PATH
-                )
-
         rejected = await self._park_until_admitted(request_id)
         if rejected is not None:
             return rejected
+
+        # Add lora request. Checked after admission: a weight sync removes the adapter and
+        # adds the new one behind a closed gate, so a request checked before parking could
+        # see the gap and run on the base weights after resume.
+        lora_request = None
+        if self.lora_as_adapter:
+            if VLLM_LORA_INT_ID not in await self.engine.list_loras():
+                self._admitting -= 1
+                msg = (
+                    f"request {request_id}: LoRA adapter {VLLM_LORA_INT_ID} is not loaded in the vLLM "
+                    f"engine; refusing to sample from the base model in place of the trained adapter"
+                )
+                logger.error(msg)
+                raise RuntimeError(msg)
+            lora_request = LoRARequest(lora_name=VLLM_LORA_NAME, lora_int_id=VLLM_LORA_INT_ID, lora_path=VLLM_LORA_PATH)
 
         with RLInsightLogger.trace_state("vllm_generate", state_lane_id=f"replica_{self.replica_rank}"):
             generator = self.engine.generate(
