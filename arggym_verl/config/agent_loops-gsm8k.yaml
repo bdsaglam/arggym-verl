@@ -1,0 +1,10 @@
+# Training rollouts stop at 8,192 tokens (the TRL run's max_completion_length);
+# dev runs to rollout.response_length, the eval config's 32,768. Temperature,
+# top-p and top-k come from rollout.* (train) and rollout.val_kwargs.* (dev).
+- name: train
+  _target_: arggym_verl.agent_loop.SamplingAgentLoop
+  sampling:
+    max_tokens: 8192
+- name: dev
+  _target_: arggym_verl.agent_loop.SamplingAgentLoop
+  sampling: {}

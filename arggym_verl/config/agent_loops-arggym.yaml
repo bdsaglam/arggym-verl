@@ -1,0 +1,12 @@
+# Qwen3.5-4B: training rollouts at the TRL config's 40,960 cap, dev at the eval
+# config's 65,536 (rollout.response_length); both with the card's presence
+# penalty, as rl/configs/qwen3.5-4b-curriculum.yaml samples them.
+- name: train
+  _target_: arggym_verl.agent_loop.SamplingAgentLoop
+  sampling:
+    max_tokens: 40960
+    presence_penalty: 1.5
+- name: dev
+  _target_: arggym_verl.agent_loop.SamplingAgentLoop
+  sampling:
+    presence_penalty: 1.5

@@ -1,0 +1,159 @@
+# GSM8K hard control on verl: the TRL run rl/configs/gsm8k-hard-qwen3-0.6b-adapter.yaml
+# (ArgGYM, branch rl-training) with verl's own GRPO, async trainer and
+# token-in/token-out rollouts. Launch with scripts/arggym/run.sh (README).
+#
+# Every value that differs from verl's default is a decision; the reason is next
+# to it, and workspace/verl-port-2026-10-20/design.md lists where verl forces a
+# difference from the TRL run.
+
+hydra:
+  searchpath:
+    - pkg://verl.trainer.config
+
+defaults:
+  - ppo_trainer
+  - _self_
+
+data:
+  # Written by `python -m arggym_verl.data` from ArgGYM's rl.gsm8k.load_splits:
+  # the screened questions (2-6 passes of 8), dev 200 test rows drawn with seed 0.
+  train_files: ${oc.env:ARGGYM_VERL_ROOT}/data/gsm8k-hard/train.parquet
+  val_files: ${oc.env:ARGGYM_VERL_ROOT}/data/gsm8k-hard/dev.parquet
+  prompt_key: prompt
+  # The longest GSM8K prompt is 235 tokens.
+  max_prompt_length: 1024
+  # The dev cap, the eval config's 32,768 (evals/conf/model/hf-qwen3-0.6b.yaml).
+  # Training rollouts stop at 8,192 through their agent loop (agent_loops-gsm8k.yaml).
+  max_response_length: 32768
+  # 16 prompts x 8 completions = 128 rollouts per optimizer step, as in TRL.
+  train_batch_size: 16
+  shuffle: true
+  seed: 0
+  truncation: error
+  # Thinking on, as the eval model config sets it.
+  apply_chat_template_kwargs:
+    enable_thinking: true
+
+actor_rollout_ref:
+  # No vLLM on the trainer GPUs: GPU 0 serves rollouts, GPUs 1-2 train, as in TRL.
+  hybrid_engine: false
+  model:
+    # Hub revision c1899de289a04d12100db370d81485cdf75e47ca, BF16 as published.
+    path: ${oc.env:HOME}/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca
+    lora_rank: 32
+    lora_alpha: 32
+    target_modules: all-linear
+    lora:
+      # Forced by verl: the checkpoint-engine sync that async training uses sends
+      # merged weights only (design.md, "LoRA").
+      merge: true
+    enable_gradient_checkpointing: true
+    use_remove_padding: true
+  actor:
+    strategy: fsdp2
+    optim:
+      lr: 2.0e-5
+      lr_scheduler_type: constant
+      lr_warmup_steps: 5
+      weight_decay: 0.0
+      clip_grad: 1.0
+    grad_clip: 1.0
+    # One optimizer step per batch of 16 prompts (TRL: num_iterations 1, one
+    # generation per step).
+    ppo_mini_batch_size: 16
+    ppo_epochs: 1
+    use_dynamic_bsz: true
+    # Tokens per micro-batch per GPU; holds one 8,192-token completion with room.
+    ppo_max_token_len_per_gpu: 16384
+    # DAPO: token-level mean, clip 0.2 / 0.28, no KL term.
+    loss_agg_mode: token-mean
+    clip_ratio_low: 0.2
+    clip_ratio_high: 0.28
+    use_kl_loss: false
+    entropy_coeff: 0
+    calculate_entropy: true
+  rollout:
+    name: vllm
+    mode: async
+    # The standalone rollout pool: one GPU, one replica.
+    nnodes: 1
+    n_gpus_per_node: 1
+    tensor_model_parallel_size: 1
+    gpu_memory_utilization: 0.85
+    # The model's whole context, as the TRL server's max_model_len.
+    max_model_len: 40960
+    load_format: safetensors
+    n: 8
+    # Training rollouts at T=1, no truncation, no penalty.
+    temperature: 1.0
+    top_p: 1.0
+    top_k: -1
+    calculate_log_probs: true
+    # The log-probs of the distribution actually sampled from.
+    logprobs_mode: processed_logprobs
+    log_prob_use_dynamic_bsz: true
+    log_prob_max_token_len_per_gpu: 16384
+    checkpoint_engine:
+      backend: nccl
+    # Dev: the model card's sampling, 4 samples per question.
+    val_kwargs:
+      temperature: 0.6
+      top_p: 0.95
+      top_k: 20
+      n: 4
+      do_sample: true
+    agent:
+      agent_loop_config_path: ${oc.env:ARGGYM_VERL_ROOT}/arggym_verl/config/agent_loops-gsm8k.yaml
+
+algorithm:
+  adv_estimator: grpo
+  # Group mean baseline, no std scaling (TRL scale_rewards: none).
+  norm_adv_by_std_in_grpo: false
+  use_kl_in_reward: false
+  # Decoupled PPO: the trainer recomputes pi_old, and the per-token weight
+  # pi_old / pi_rollout, truncated at 2, multiplies the loss (TRL's
+  # vllm_importance_sampling_mode token_truncate, cap 2).
+  rollout_correction:
+    rollout_is: token
+    rollout_is_threshold: 2.0
+    bypass_mode: false
+
+reward:
+  reward_manager:
+    source: importlib
+    name: ArgGymRewardManager
+    module:
+      path: ${oc.env:ARGGYM_VERL_ROOT}/arggym_verl/reward.py
+
+trainer:
+  use_v1: true
+  v1:
+    # Rollout and training overlap on separate GPUs.
+    trainer_mode: separate_async
+    separate_async:
+      parameter_sync_step: 1
+      num_warmup_batches: 1
+    sampler:
+      # One step off-policy at most: a group submitted before the previous
+      # weight sync may be trained on, an older one may not. `wait` holds the
+      # step for it rather than dropping it, since dropping late groups would
+      # drop the long completions first.
+      max_off_policy_threshold: 2
+      max_off_policy_strategy: wait
+  nnodes: 1
+  n_gpus_per_node: 2
+  total_epochs: 1000
+  total_training_steps: 200
+  val_before_train: true
+  test_freq: 10
+  save_freq: 10
+  # Every checkpoint is kept; arggym_verl.report names the best by dev success.
+  max_actor_ckpt_to_keep: null
+  resume_mode: auto
+  project_name: arggym-verl
+  experiment_name: gsm8k-hard-qwen3-0.6b-lr2e-5-s0
+  logger: [console, file, trackio]
+  log_val_generations: 10
+  default_local_dir: ${oc.env:ARGGYM_VERL_ROOT}/outputs/${trainer.experiment_name}/checkpoints
+  rollout_data_dir: ${oc.env:ARGGYM_VERL_ROOT}/outputs/${trainer.experiment_name}/rollouts
+  validation_data_dir: ${oc.env:ARGGYM_VERL_ROOT}/outputs/${trainer.experiment_name}/dev
