@@ -54,9 +54,9 @@ actor_rollout_ref:
     strategy: fsdp2
     optim:
       # verl's LoRA guide raises the LR by an order of magnitude for LoRA and
-      # uses 3e-5 in its FSDP reference (docs/advance/ppo_lora.rst, "Best
-      # Practices" 1 and 3). The recipe's 3e-6 is 3x its full-FT 1e-6
-      # (examples/grpo_trainer/run_qwen3_4b_fsdp.sh), not 10x. The rest of
+      # uses 3e-5 in its FSDP reference (docs/advance/ppo_lora.rst:164,186,
+      # "Best Practices" 1 and 3). The recipe's 3e-6 is 3x the full-FT 1e-6 of
+      # examples/grpo_trainer/run_qwen3_4b_fsdp.sh, not 10x. The rest of
       # the optimizer is verl's default, as in the recipe: constant schedule,
       # no warmup, weight decay 0.01, grad clip 1.0.
       lr: 3.0e-5
