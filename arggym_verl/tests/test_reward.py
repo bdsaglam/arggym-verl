@@ -75,27 +75,21 @@ def test_manager_decodes_the_sampled_ids_as_trl_does():
     assert gsm8k.correct(trl_text, 18.0)
 
 
-POOL_ROOT = "/home/baris/repos/ArgGYM2/.claude/worktrees/agent-a1aabb6eb720c122c/outputs/rl"
-
-
 def arggym_dev_rows():
-    from pathlib import Path
-
-    from conftest import ARGGYM_ROOT
+    """Six dev rows of experiment 003's pool, from the committed copy (conftest.ARGGYM_POOL_ROOT)."""
+    from conftest import ARGGYM_POOL_ROOT, TRL_ARGGYM
     from rl import config as rl_config
     from rl import pool
 
-    if not Path(POOL_ROOT).exists():
-        pytest.skip("ArgGYM pool not found")
-    cfg = rl_config.load(str(ARGGYM_ROOT / "rl/configs/qwen3.5-4b-curriculum.yaml"),
-                         [f"output_root={POOL_ROOT}"])
+    cfg = rl_config.load(str(TRL_ARGGYM), [f"output_root={ARGGYM_POOL_ROOT}"])
     elicit = pool.elicitation(cfg["prompt"]["elicitation"])
     return pool.trl_rows(pool.load_split(cfg, "dev")[:6], cfg["prompt"]["template"], elicit), \
         cfg["prompt"]["template"]
 
 
-def test_arggym_reward_matches_trl_where_trl_pays():
-    """Same scorer; where TRL returns None (truncated or refused) verl pays 0."""
+def test_arggym_reward_matches_trl():
+    """Same scorer and payout: a truncated completion pays 0 in both (rl-003); only a row
+    the scorer refuses, None in TRL, pays 0 here."""
     from rl import reward as arggym_reward
 
     rows, template = arggym_dev_rows()
@@ -108,4 +102,5 @@ def test_arggym_reward_matches_trl_where_trl_pays():
                              STOP) for t, i, r in zip(texts, ids, rows)]
     for t, o in zip(trl, ours, strict=True):
         assert o["score"] == (0.0 if t is None else t)
-    assert ours[2]["truncated"] == 1.0 and trl[2] is None
+        assert (t is None) == (o["refused"] == 1.0)
+    assert ours[2]["truncated"] == 1.0 and trl[2] == 0.0 and ours[2]["score"] == 0.0

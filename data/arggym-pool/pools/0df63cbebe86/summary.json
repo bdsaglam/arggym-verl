@@ -1,0 +1,36 @@
+{
+  "data": {
+    "tasks": "all",
+    "levels": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "train": {
+      "seed_start": 1000000,
+      "take": 25,
+      "scan_limit": 100
+    },
+    "dev": {
+      "seed_start": 2000000,
+      "take": 1,
+      "scan_limit": 40,
+      "per_task_level": 1
+    }
+  },
+  "train": {
+    "n_items": 9600,
+    "dropped_as_seen": {},
+    "taskset_hash": "ea2392febaee8c98f445c06e4e004dfd"
+  },
+  "dev": {
+    "n_items": 96,
+    "dropped_as_seen": {},
+    "taskset_hash": "55f5af45c3edd936bf08b15622897352"
+  }
+}

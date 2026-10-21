@@ -5,7 +5,8 @@
 
 The first argument is the TRL run's own config, read by ArgGYM's `rl.config`, and
 the rows come from ArgGYM's own selection code: `rl.gsm8k.load_splits` for
-`task: gsm8k`, `rl.pool.load_split` for ArgGYM. So both pipelines train and
+`task: gsm8k`, `rl.pool.load_split` for ArgGYM, with the training rows restricted to
+the config's `train_cells` by `rl.pool.restrict`. So both pipelines train and
 evaluate on the same ids, with the same prompt messages.
 
 Each row carries `agent_name`, `train` or `dev`, which picks the agent loop and so
@@ -46,7 +47,12 @@ def arggym_rows(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
     template = cfg["prompt"]["template"]
     out = {}
     for split in ("train", "dev"):
-        rows = pool.trl_rows(pool.load_split(cfg, split), template, elicit)
+        rows = pool.load_split(cfg, split)
+        if split == "train":
+            # Training draws only from the config's `train_cells`, as rl.train does; dev keeps
+            # every cell.
+            rows = pool.restrict(rows, cfg.get("train_cells"))
+        rows = pool.trl_rows(rows, template, elicit)
         out[split] = [
             {"data_source": DATA_SOURCE["arggym"], "prompt": r["prompt"], "agent_name": split,
              "reward_model": {"style": "rule", "ground_truth": r["id"]},
@@ -95,6 +101,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     cfg = rl_config.load(a.config, a.overrides)
     splits = build(cfg)
     write(splits, a.out, {"config": a.config, "overrides": a.overrides, "data": cfg["data"],
+                          "train_cells": cfg.get("train_cells"),
                           "arggym_git_sha": _git_sha(rl_config.ROOT)})
     print(json.dumps({s: len(r) for s, r in splits.items()}), "->", a.out)
     return 0

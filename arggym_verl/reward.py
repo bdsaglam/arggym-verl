@@ -15,9 +15,11 @@ GSM8K pays 1 when the last `\\boxed{}` is the gold number (`rl.gsm8k.correct`),
 0 otherwise, and 0 when truncated; the completion stays in the loss.
 
 ArgGYM scores through `rl.reward.score`, which is `evals.score.score_one`, the
-eval's scorer. Where `rl.reward.reward_of` returns None (truncated, or the scorer
-refused the row) verl has no way to leave a completion out of its group's
-baseline, so it pays 0; `refused` is logged so a refusal is never silent.
+eval's scorer, and pays `rl.reward.reward_of`: 1 for a finished success, 0 for a
+failure or a truncated completion, which stays in the loss. Where `reward_of`
+returns None (the scorer refused the row) verl has no way to leave a completion
+out of its group's baseline, so it pays 0; `refused` is logged so a refusal is
+never silent.
 
 `reward_extra_info` is what verl averages into the dev metrics
 (`val-aux/<data_source>/<key>/mean@N`); `acc` is the selection metric

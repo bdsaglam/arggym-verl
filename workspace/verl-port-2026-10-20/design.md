@@ -56,11 +56,13 @@ trains on completions that are one weight version stale or span two
 versions (section "Async"), and the weight `pi_old / pi_rollout` corrects for
 that. The block is the one `docs/algo/rollout_corr.md:170-182` documents.
 
-**Two GPUs.** `_balance_batch` pads every batch to a multiple of
+**GPUs.** `_balance_batch` pads every batch to a multiple of
 `lcm(ranks, mini-batch completions)` (`trainer_base._get_required_batch_multiple`,
 `verl/trainer/ppo/v1/trainer_base.py:1604-1621`). With mini-batch 32 x 5 = 160
 completions, two ranks need `lcm(2, 160) = 160`, which divides the 320 of a
-batch; three would pad 320 to `lcm(3, 160) = 480`.
+batch; three would pad 320 to `lcm(3, 160) = 480`. So the GSM8K control runs on
+two GPUs, and the ArgGYM run takes six completions a prompt to run on three
+(section "ArgGYM run").
 
 The step budget stays 200 steps: 12,800 prompts, about 9.7 passes over the
 1,322 training questions.
@@ -218,7 +220,7 @@ Dtypes:
 | Trainer forward/backward | BF16 compute, FP32 gradient reduce (FSDP2 `MixedPrecisionPolicy`, `transformer_impl.py:393-399,455`) | verl's default |
 | vLLM base weights | BF16 (`rollout.dtype`), the published checkpoint, loaded from safetensors | vendor precision |
 | vLLM adapter | vLLM LoRA dtype `auto`, BF16 (vLLM-side; not read in vLLM) | the factors are rounded on their own, not added into a weight, so no delta falls below a weight's ulp |
-| Sampled log-probs | `logprobs_mode: processed_logprobs` | at T 1, top_p 1, no top-k, the raw log-probs |
+| Sampled log-probs | `logprobs_mode: processed_logprobs` | GSM8K (T 1, top_p 1, no top-k): the raw log-probs. ArgGYM (top_p 0.95, top_k 20, presence penalty 1.5): the log-probs of the distribution sampled from, as TRL's server returns them; the IS weight then also covers the gap to the trainer's full distribution |
 
 ## Smoke checklist
 
@@ -238,13 +240,15 @@ Read training metrics from step 3 (section "Async").
 
 ## Comparing with the TRL run
 
-The TRL pipeline in ArgGYM (`rl/`, branch `rl-training`) uses its own
-hyperparameters; this pipeline uses verl's recipe, so the two are compared on
-the same task (rows, reward, lengths, dev sampling, schedule), not the same
-algorithm settings. Beyond the hyperparameters:
+The TRL pipeline in ArgGYM (`rl/`; GSM8K on branch `rl-training`, ArgGYM's
+experiment 003 on `rl-003`) uses its own hyperparameters; this pipeline uses
+verl's recipe, so the two are compared on the same task (rows, reward, lengths,
+sampling, dev split), not the same algorithm settings. Beyond the
+hyperparameters:
 
-1. **Staleness.** TRL is synchronous; this run trains one version stale from
-   step 3, with the truncated IS weight.
+1. **Staleness.** TRL is synchronous. The GSM8K run trains one version stale
+   from step 3, with the truncated IS weight; the ArgGYM run trains each step
+   on its own batch, as TRL does.
 2. **Loss denominator.** TRL's DAPO loss divides by the tokens of completions
    with a nonzero advantage. verl's `token-mean` divides by all tokens of the
    mini-batch across ranks.
@@ -252,14 +256,10 @@ algorithm settings. Beyond the hyperparameters:
    kept. `arggym_verl.report` picks the best by dev success and compares it
    with step 0.
 4. **ArgGYM only.**
-   - There is no curriculum: prompts are drawn uniformly.
-   - A completion TRL scores `None` pays 0 here, and refusals are logged as
-     `refused`. Branch `rl-003` makes a truncated completion pay 0 in TRL too.
-   - The ArgGYM config inherits the GSM8K control's algorithm (recipe values,
-     KL, LR 3e-5, rollout n 5) and overrides batch, lengths, sampling and LR
-     1e-5. Its values have not been re-derived for Qwen3.5-4B; verl has no
-     LoRA recipe for it (`examples/grpo_trainer/run_qwen3_5_2b_openr1_fsdp.sh`
-     is full fine-tuning). It composes on CPU and has never run.
+   - There is no curriculum: prompts are drawn uniformly from 003's 57
+     training cells.
+   - A completion the scorer refuses is `None` in TRL and pays 0 here, logged
+     as `refused`. A truncated completion pays 0 and stays in the loss in both.
 
 ## Patches to verl
 
@@ -289,14 +289,177 @@ changes:
 - **Two additions:** `python-argumentation` (ArgGYM's scorer) and `trackio`.
 
 ArgGYM code is imported from `$ARGGYM_ROOT` on `PYTHONPATH`, not copied:
-`rl.gsm8k`, `rl.pool`, and `rl.reward`, which calls `evals.score.score_one`.
-Each run records that checkout's commit. The GSM8K screen output is the one
-exception: it is data, copied into `data/gsm8k-screen/` from ArgGYM at
-`79d9fe2`.
+`rl.gsm8k`, `rl.pool` (with `rl.pool.restrict`, branch `rl-003`), and
+`rl.reward`, which calls `evals.score.score_one`. `ARGGYM_ROOT` defaults to
+`.arggym`, a clone of the ArgGYM repository that `setup.sh` checks out at the
+commit in `scripts/arggym/arggym-rev` (`a5b05fb`, experiment 003's). A clone
+pinned by commit stays put when the main ArgGYM checkout changes branch or a
+worktree is cleaned up; a branch name or a worktree path would not. Each run
+records the commit. Two pieces of ArgGYM output are data, copied rather than
+imported: the GSM8K screen (`data/gsm8k-screen/`, from ArgGYM at `79d9fe2`) and
+003's pool (`data/arggym-pool/pools/0df63cbebe86/`, byte-identical to the one
+003's run reads; `train.jsonl` is gitignored for size).
 
-## GPU status
+## ArgGYM run
 
-Earlier smoke attempts got through Ray start-up, model and LoRA init, the
-reward loop and the checkpoint engine, then stopped on the flash-attn wheel
-(fixed by the setup script). No rollout, dev score or training step has run,
-and this config has not run on GPU.
+`arggym_verl/config/arggym-qwen3.5-4b.yaml`, three GPUs. The algorithm is the
+GSM8K config's (section "Hyperparameters"): LR 3e-5, LoRA r64/a32, KL
+`low_var_kl` 0.001, mini-batch half the batch, std normalization, no warmup,
+weight decay 0.01, token IS capped at 2. The task is ArgGYM's experiment 003
+(`rl/configs/qwen3.5-4b-003.yaml` at `a5b05fb`), and `test_config.py` reads
+each of these values from 003's own config:
+
+| Setting | Value | Source |
+|---|---|---|
+| Rows | training: 5,700 rows of 57 (task, level) cells; dev: 96 rows, one per cell | 003's `train_cells` through `rl.pool.restrict`; 003's pool |
+| Reward | strict success, 1 or 0; a truncated completion pays 0 and stays in the loss | `rl.reward` at `a5b05fb` |
+| Model | Qwen3.5-4B, revision `851bf6e`, BF16 | 003 |
+| Prompts | `xml_tags`, `cot`, thinking on | 003 and the eval model config |
+| Training rollouts | T 1.0, top_p 0.95, top_k 20, presence penalty 1.5, 40,960-token cap | 003 |
+| Dev | the same sampling (min_p 0, repetition penalty 1), 65,536-token cap, 2 samples a row | the eval config through `rl.config.dev_sampling`; 003 |
+| Schedule | 100 steps; dev at step 0 and every 10; a checkpoint every 10 | 003's step count |
+| Batch | 16 prompts x 6 = 96 completions; mini-batch 8 x 6 = 48 | below |
+
+**Batch.** Six completions a prompt is the count nearest the recipe's 5 that
+three ranks divide: a mini-batch of M prompts is then 6M completions, a
+multiple of 3, so `lcm(3, 6M) = 6M`, which divides the batch's 12M. Sixteen
+prompts put 32 sequences on each vLLM replica, about half its KV cache at the
+lengths 003 measured (below), and keep a step near half an hour; 24 would fill
+three quarters of it and lengthen every step by about a quarter.
+
+**Each step on its own batch** (`num_warmup_batches: 0`). With a batch
+generated ahead, the completions still running when a step starts are aborted
+and resumed after the weight sync, and `verl/workers/rollout/llm_server.py:291-296` resumes one by
+sending prompt plus tokens so far as the new prompt. vLLM's presence penalty
+counts output tokens only (`vllm/model_executor/layers/utils.py`,
+`apply_penalties`), so a resumed completion would sample its remainder as if its
+first part had never been penalized. With completions of ~28k tokens most of a
+prefetched batch would resume. Without the batch ahead, each step's completions
+come from the weights that train on them: staleness 0, steps 1 and 2 unbiased,
+and the IS weight covers only the engine gap and the gap between the sampled
+(penalized, top-k, top-p) distribution and the trainer's full one. The step
+then waits for its longest completion, as 003's synchronous TRL run does.
+
+**Qwen3.5.**
+
+- verl loads the checkpoint as `Qwen3_5ForConditionalGeneration`
+  (`AutoModelForImageTextToText`, `verl/utils/model.py:711`), as its Qwen3.5
+  recipes do; the vision tower is inside the FSDP model, frozen, without an
+  adapter (`exclude_modules: .*visual.*`). verl's Qwen3.5 patch
+  (`verl/models/transformers/monkey_patch.py:500-542`) gives the Gated DeltaNet
+  layers a packed-sequence forward with fla's `chunk_gated_delta_rule`.
+  `causal_conv1d` is not installed, so the short convolution runs verl's PyTorch
+  fallback: slower, not different.
+- `all-linear` adapts 12 module kinds, 129.9M parameters at rank 64: q/k/v/o in
+  the 8 full-attention layers, `in_proj_qkv`, `in_proj_z`, `in_proj_a`,
+  `in_proj_b` and `out_proj` in the 24 Gated DeltaNet layers, gate/up/down in all
+  32. 003's run lists the same kinds and counts.
+- vLLM starts with `--language-model-only` (`engine_kwargs.vllm`), as ArgGYM
+  serves it. vLLM 0.24's `Qwen3_5ForConditionalGeneration` packs
+  `in_proj_qkv`+`in_proj_z` into `in_proj_qkvz`, `in_proj_b`+`in_proj_a` into
+  `in_proj_ba`, q/k/v into `qkv_proj` and gate/up into `gate_up_proj`, and has
+  `o_proj`, `out_proj` and `down_proj` as row-parallel linears, so every target
+  has a LoRA layer (`test_config.py`). 003's TRL run probed all 12 kinds at its
+  first sync, on vLLM 0.30, and vLLM applied each; here the served-policy check
+  confirms it.
+- Prefix caching off, entropy in chunks, gradient checkpointing and padding
+  removal on, as in `examples/grpo_trainer/run_qwen3_5_27b_fsdp.sh`. Those
+  recipes also offload parameters and optimizer to CPU; this run does not need
+  to (below).
+
+**Memory per 80 GB GPU.** Estimates from the shapes; only the run measures
+them (`actor/perf/max_memory_allocated_gb`, vLLM's KV log line).
+
+Training phase, vLLM asleep (weights in CPU memory, KV cache freed):
+
+| Item | Arithmetic | GB |
+|---|---|---|
+| FP32 base weights, one shard of three | 4.54B x 4 B / 3 | 6.1 |
+| LoRA weights, gradients, AdamW state (FP32) | 129.9M x 16 B / 3 | 0.7 |
+| Layer inputs kept by checkpointing, one 49,152-token micro-batch | 49,152 x 2,560 x 2 B x 32 layers | 8.1 |
+| Its BF16 logits (flash-attn's cross-entropy writes the gradient in place) | 49,152 x 248,320 x 2 B | 24.4 |
+| One layer recomputed and backpropagated, its unsharded BF16 weights, the tied embedding | | ~6 |
+| Trainer total | | ~45 |
+
+The same arithmetic gives 7.3 GB for the GSM8K run (16,384-token micro-batches,
+logits 5.0 GB), which peaked at 7.6 GB allocated. vLLM's sleeping remainder
+(CUDA graphs, context) adds a few GB. If the trainer runs out of memory,
+`actor_rollout_ref.model.use_fused_kernels=true` computes log-probs 512 tokens
+at a time (`verl/utils/experimental/torch_functional.py`) and removes the
+logits term.
+
+Rollout phase: vLLM takes `gpu_memory_utilization` 0.8 = 64 GB: text-model
+weights 8.4 GB (4.21B x 2 B), the adapter 0.3 GB, activations and CUDA graphs
+~4 GB, and ~51 GB for the cache. The trainer keeps its 6.8 GB of shards, so
+the GPU holds ~72 GB. A token's KV is 32 KiB (8 full-attention layers x K and
+V x 4 heads x 256 x 2 B) and a sequence's Gated DeltaNet state ~49 MiB (24
+layers x 32 heads x 128 x 128 x FP32), so the cache holds ~1.5M tokens. 003's
+server (60 GiB, ~1.9M tokens) held 52 running sequences at 67% usage, ~24k
+tokens each. A training step's 32 sequences a replica then need ~0.8M tokens;
+dev's 64 a replica would need ~1.5M, so `max_num_seqs: 48` runs 48 (~1.2M)
+and queues the rest rather than let vLLM preempt long completions.
+
+**Step time, estimated.** Training: on GSM8K the three passes (old log-prob,
+reference, update) ran at ~8,100 tokens/s per GPU on Qwen3-0.6B. Qwen3.5-4B has
+8x the non-embedding parameters (3.57B against 0.44B) and attends over ~30k
+tokens, so assume ~1/9 of that, ~900 tokens/s; a step's 96 x ~28k = 2.7M tokens
+are 0.9M a GPU, ~17 minutes. Generation is bound by the longest completion:
+003's server decoded each sequence at 25-55 tokens/s (3,000 tokens/s over 64
+sequences, 442 over 8), so a completion at the 40,960 cap takes 12-25 minutes,
+while the step's 2.6M tokens at 1.2-2k tokens/s a replica take ~10. A step
+should take ~30 minutes (25-40), a dev evaluation ~30 (192 completions of ~29k,
+the longest at 65,536), and the run of 100 steps with 11 evaluations ~2.5
+days. 003 on TRL takes ~49 minutes a step.
+
+**What only the GPU run settles.**
+
+- That vLLM 0.24 applies the adapter to the packed Gated DeltaNet projections:
+  `served/armed`, then `served/track` near 1. Sampled log-probs include the
+  presence penalty and the top-k/top-p renormalization, which the trainer's do
+  not, so the check's noise is far above GSM8K's 0.02 nats and it may arm later.
+- Trainer and vLLM memory against the estimates above, and preemptions (vLLM's
+  log lines in `driver.log`).
+- verl's Qwen3.5 training path at 49,152-token micro-batches (fla kernels,
+  padding removal, LoRA on the Gated DeltaNet projections), which no CPU test
+  reaches.
+- Step 0: `val-core/arggym/acc/mean@2` near 0.328, 003's step 0 on the same rows
+  and sampling (its `dev/step_00000.jsonl`).
+- The importance weights: `rollout_corr/rollout_is_eff_sample_size` and the
+  clamped share, now that the sampled distribution is not the trainer's.
+- Step time, and the share of groups without signal (`arggym_verl.report`;
+  002, on all 96 cells, had 0.38-0.58).
+
+The GSM8K smoke checklist applies with three changes: `served/tokens` is
+positive from step 2 (no batch ahead), `training/off_policy/*` staleness is 0,
+and training metrics are comparable from step 1.
+
+## Results: GSM8K hard control
+
+Run `outputs/gsm8k-hard-recipe`: `gsm8k-hard-qwen3-0.6b.yaml` on two GPUs,
+verl at `60866134`, ArgGYM at `b433e6f`, 100 steps.
+
+Dev success (`val-core/gsm8k/acc/mean@4`, 200 rows x 4 samples):
+
+| Step | 0 | 10 | 20 | 30 | 40 | 50 | 60 | 70 | 80 | 90 | 100 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Dev | 0.610 | 0.609 | 0.644 | 0.645 | 0.670 | 0.663 | 0.666 | 0.696 | 0.689 | 0.700 | 0.733 |
+
+Still rising at step 100, the best checkpoint (`selection.json`).
+
+Precision, from step 3:
+
+- `actor/pg_clipfrac` ~5e-4 (no phantom clipping); `actor/kl_loss` 0.001 at
+  step 3, 0.031 at step 100.
+- Importance weights: ESS 0.998, mean 1.000, clamped share below 1e-5.
+- `served/logp_gap_mean` 0.017-0.019 nats.
+- `served/armed` at step 3; `served/track` 0.50 at step 3, 0.67 at step 5, 0.85
+  at step 10, 0.95 at step 20, 0.98 at step 100. Early on, one version of
+  staleness is large next to the adapter's total shift; it shrinks as the
+  shift grows.
+- Trainer peak 7.6 GB allocated.
+
+Time: a step takes 212 s (median from step 3): generation 140, old log-probs 15,
+reference 12, update 45, weight sync 1.2. A dev evaluation takes 6-14 minutes.
+
+The ArgGYM config composes and passes verl's validation on CPU; it has not run
+on GPU.

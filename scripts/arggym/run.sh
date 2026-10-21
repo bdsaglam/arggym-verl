@@ -3,6 +3,7 @@
 #
 #   scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b [hydra overrides ...]
 #   RUN=smoke scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b trainer.total_training_steps=3
+#   CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b
 #
 # Outputs go to outputs/$RUN (RUN defaults to the config name): checkpoints,
 # rollouts, dev generations, metrics.jsonl, the reward log, and the driver log.
@@ -17,8 +18,9 @@ OUT="$ROOT/outputs/$RUN"
 mkdir -p "$OUT"
 
 export ARGGYM_VERL_ROOT="$ROOT"
-export ARGGYM_ROOT=${ARGGYM_ROOT:-/home/baris/repos/ArgGYM2}
-# ArgGYM's rl/ and evals/ (data selection, prompts, scorers) are imported from its checkout.
+# ArgGYM's rl/ and evals/ (data selection, prompts, scorers) are imported from its code
+# at the pinned commit, which setup.sh checks out into .arggym.
+export ARGGYM_ROOT=${ARGGYM_ROOT:-$ROOT/.arggym}
 export PYTHONPATH="$ROOT:$ARGGYM_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export TRACKIO_DIR="$ROOT/outputs/trackio"
 export VERL_FILE_LOGGER_PATH="$OUT/metrics.jsonl"
@@ -31,7 +33,7 @@ export PATH="$ROOT/.venv/bin:$PATH"
 
 {
   echo "verl $(git -C "$ROOT" rev-parse HEAD)"
-  echo "arggym $(git -C "$ARGGYM_ROOT" rev-parse HEAD) ($(git -C "$ARGGYM_ROOT" branch --show-current))"
+  echo "arggym $(git -C "$ARGGYM_ROOT" rev-parse HEAD)"
 } > "$OUT/versions.txt"
 
 "$ROOT/.venv/bin/python" -m arggym_verl.main \

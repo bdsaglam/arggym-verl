@@ -166,3 +166,151 @@ def test_validates_with_kl_on(cfg):
 
     assert need_reference_policy(cfg)
     validate_config(config=cfg, use_reference_policy=True, use_critic=need_critic(cfg))
+
+
+# ArgGYM on Qwen3.5-4B, three GPUs: the GSM8K config's algorithm on experiment 003's task.
+
+
+@pytest.fixture(scope="module")
+def arggym():
+    from hydra import compose, initialize_config_dir
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        return compose(config_name="arggym-qwen3.5-4b",
+                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+
+
+@pytest.fixture(scope="module")
+def exp003():
+    from conftest import TRL_ARGGYM
+    from rl import config as rl_config
+
+    return rl_config.load(str(TRL_ARGGYM))
+
+
+def test_arggym_keeps_the_gsm8k_algorithm(cfg, arggym):
+    """LR 3e-5, the recipe's LoRA, KL, loss, advantage and optimizer, and the token IS."""
+    a, g = arggym.actor_rollout_ref, cfg.actor_rollout_ref
+    assert a.actor.optim == g.actor.optim and a.actor.optim.lr == 3e-5
+    assert (a.model.lora_rank, a.model.lora_alpha, a.model.target_modules) == (64, 32, "all-linear")
+    assert not a.model.lora.merge
+    for key in ("use_kl_loss", "kl_loss_coef", "kl_loss_type", "clip_ratio_low", "clip_ratio_high",
+                "loss_agg_mode", "entropy_coeff", "ppo_epochs"):
+        assert a.actor[key] == g.actor[key], key
+    assert arggym.algorithm == cfg.algorithm
+    assert a.rollout.calculate_log_probs and a.rollout.logprobs_mode == "processed_logprobs"
+    assert (a.rollout.load_format, a.rollout.layered_summon) == ("safetensors", True)
+    assert arggym.trainer.v1.trainer_mode == "colocate_async"
+
+
+def test_arggym_batch_arithmetic_pads_nothing_on_three_gpus(arggym):
+    """16 prompts x 6 = 96 completions; mini-batch 8 x 6 = 48; lcm(3, 48) = 48 divides 96."""
+    a, r, t = arggym.actor_rollout_ref.actor, arggym.actor_rollout_ref.rollout, arggym.trainer
+    ranks = t.n_gpus_per_node * t.nnodes
+    assert ranks == 3 and r.n == 6 and r.tensor_model_parallel_size == 1
+    assert (arggym.data.train_batch_size, a.ppo_mini_batch_size) == (16, 8)
+    completions, mini = arggym.data.train_batch_size * r.n, a.ppo_mini_batch_size * r.n
+    assert (completions, mini, math.lcm(ranks, mini)) == (96, 48, 48)
+    assert completions % math.lcm(ranks, mini) == 0  # trainer_base._get_required_batch_multiple
+    assert completions // mini == 2  # optimizer steps per batch, as the recipe's
+    assert completions // ranks <= r.max_num_seqs  # a step's completions all decode at once
+
+
+def test_arggym_task_is_003s(arggym, exp003):
+    """Model revision, thinking, the training cap and sampling, dev sampling and samples."""
+    from rl import config as rl_config
+
+    r, g = arggym.actor_rollout_ref.rollout, exp003["grpo"]
+    assert arggym.actor_rollout_ref.model.path.endswith(exp003["model"]["revision"])
+    em = rl_config.eval_model(exp003)
+    assert dict(arggym.data.apply_chat_template_kwargs) == em["chat_template_kwargs"] \
+        == {"enable_thinking": True}
+    loops = agent_loops(arggym)
+    # Training rollouts: 003's cap and sampling, the card's presence penalty.
+    assert loops["train"]["sampling"] == {"max_tokens": g["max_completion_length"],
+                                          "presence_penalty": g["generation_kwargs"]["presence_penalty"]}
+    assert g["max_completion_length"] == 40960 and not g["mask_truncated_completions"]
+    assert (r.temperature, r.top_p, r.top_k) == (g["temperature"], g["top_p"], g["top_k"])
+    # Dev: the eval config's sampling, cap and presence penalty, 003's samples per row.
+    dev = rl_config.dev_sampling(exp003)
+    v = r.val_kwargs
+    assert (v.temperature, v.top_p, v.top_k) == (dev["temperature"], dev["top_p"], dev["top_k"])
+    assert (dev["min_p"], dev["repetition_penalty"]) == (0.0, 1.0)  # vLLM's defaults
+    assert loops["dev"]["sampling"] == {"presence_penalty": dev["presence_penalty"]} \
+        == {"presence_penalty": 1.5}
+    assert arggym.data.max_response_length == dev["max_completion_length"] == 65536
+    assert v.n == g["num_generations_eval"] == 2
+    assert r.max_model_len == exp003["vllm"]["max_model_len"] == 73728
+    assert arggym.data.max_prompt_length + arggym.data.max_response_length <= r.max_model_len
+    assert arggym.trainer.total_training_steps == g["max_steps"] == 100
+    t = arggym.trainer
+    assert t.val_before_train and t.test_freq == 10 and t.save_freq == 10
+
+
+def test_arggym_runs_on_its_own_batch(arggym):
+    """No batch generated ahead: a resumed completion would lose its presence penalty."""
+    assert arggym.trainer.v1.colocate_async.num_warmup_batches == 0
+
+
+def test_arggym_memory_layout(arggym):
+    a, r = arggym.actor_rollout_ref, arggym.actor_rollout_ref.rollout
+    longest = arggym.data.max_prompt_length + agent_loops(arggym)["train"]["sampling"]["max_tokens"]
+    for limit in (a.actor.ppo_max_token_len_per_gpu, r.log_prob_max_token_len_per_gpu,
+                  a.ref.log_prob_max_token_len_per_gpu):
+        assert limit >= longest == 49152
+    assert a.actor.use_dynamic_bsz and a.model.use_remove_padding
+    assert a.model.enable_gradient_checkpointing
+    assert a.actor.entropy_from_logits_with_chunking
+    assert not a.actor.fsdp_config.param_offload and not a.actor.fsdp_config.optimizer_offload
+    assert r.gpu_memory_utilization == 0.8 and r.max_num_seqs == 48
+    assert r.free_cache_engine and not r.enable_prefix_caching
+    assert r.engine_kwargs.vllm == {"language_model_only": True}
+    assert a.actor.checkpoint.save_lora_only
+
+
+def test_arggym_validates_with_kl_on(arggym):
+    from verl.trainer.ppo.utils import need_critic, need_reference_policy
+    from verl.utils.config import validate_config
+
+    assert need_reference_policy(arggym)
+    validate_config(config=arggym, use_reference_policy=True, use_critic=need_critic(arggym))
+
+
+def test_lora_targets_are_the_text_linears_and_vllm_serves_each(arggym, exp003):
+    """The adapter verl builds on Qwen3.5-4B (meta device, no weights) covers every Linear of
+    the text model, as 003's run.json lists them, and vLLM's Qwen3.5 has a LoRA-capable layer
+    for each: a packed one (packed_modules_mapping) or a parallel linear of that name.
+    The served-policy check confirms at runtime that vLLM applies them."""
+    import collections
+    import inspect
+
+    import torch
+    from peft import LoraConfig, get_peft_model
+    from transformers import AutoConfig
+
+    from conftest import QWEN35_4B
+    from verl.utils.model import get_hf_auto_model_class
+
+    m = arggym.actor_rollout_ref.model
+    hf_config = AutoConfig.from_pretrained(str(QWEN35_4B))
+    with torch.device("meta"):
+        model = get_hf_auto_model_class(hf_config=hf_config).from_config(hf_config)
+    assert type(model).__name__ == "Qwen3_5ForConditionalGeneration"
+    model = get_peft_model(model, LoraConfig(task_type="CAUSAL_LM", r=m.lora_rank,
+                                             lora_alpha=m.lora_alpha, target_modules=m.target_modules,
+                                             exclude_modules=m.exclude_modules, bias="none"))
+    adapted = [n for n, mod in model.named_modules() if getattr(mod, "lora_A", None)]
+    assert all(".language_model.layers." in n for n in adapted)
+    kinds = collections.Counter(n.rsplit(".", 1)[-1] for n in adapted)
+    assert kinds == {"q_proj": 8, "k_proj": 8, "v_proj": 8, "o_proj": 8,
+                     "in_proj_qkv": 24, "in_proj_z": 24, "in_proj_a": 24, "in_proj_b": 24,
+                     "out_proj": 24, "gate_proj": 32, "up_proj": 32, "down_proj": 32}
+
+    from vllm.model_executor.layers.mamba.gdn import qwen_gdn_linear_attn
+    from vllm.model_executor.models import qwen2_moe, qwen3_5, qwen3_next
+
+    packed = qwen3_5.Qwen3_5ForConditionalGeneration.packed_modules_mapping
+    source = "".join(inspect.getsource(mod) for mod in (qwen3_5, qwen3_next, qwen2_moe,
+                                                        qwen_gdn_linear_attn))
+    linear = set(re.findall(r"self\.(\w+)\s*=\s*(?:Row|Column)ParallelLinear\(", source))
+    assert set(kinds) <= {s for subs in packed.values() for s in subs} | linear
