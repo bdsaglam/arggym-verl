@@ -47,8 +47,9 @@ near 1 or above). design.md, "Results", has the detail.
   of each GPU while generating.
 - An NVIDIA driver for CUDA 13.0 (580 or newer). The venv brings its own CUDA
   runtime: torch 2.11.0+cu130, cuDNN 9.19, NCCL 2.28.9, vLLM 0.24.0, flash-attn
-  2.8.3, transformers 5.9.0, peft 0.19.1, Ray 2.55.1. The system CUDA toolkit is
-  not used.
+  2.8.3, transformers 5.9.0, peft 0.19.1, Ray 2.55.1. The runs have worked with an
+  old system CUDA toolkit (11.5) because `run.sh` turns off FlashInfer's sampler,
+  which would JIT-compile with it.
 - [uv](https://docs.astral.sh/uv/) (built with 0.9.13) and git. uv installs
   Python 3.12 if it is missing.
 - Network access to GitHub and the Hugging Face Hub. Both models and the GSM8K
