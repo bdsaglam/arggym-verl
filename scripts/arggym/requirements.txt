@@ -1,0 +1,7 @@
+# Installed by scripts/arggym/setup.sh on top of verl's uv.lock.
+# ArgGYM's library (task generators and grader), its main branch at b04e12f.
+arggym @ git+https://github.com/ieddeveci/ArgGYM.git@b04e12f9dddc4d5c475bde666b76a5d98e86f3c7
+# ArgGYM's argumentation engine, the version arggym 2.0.0 pins.
+python-argumentation==2.0.2
+# Local metrics dashboard (trainer.logger includes trackio).
+trackio==0.42.0

@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 data:
-  # Written by `python -m arggym_verl.data` from ArgGYM's rl.gsm8k.load_splits:
+  # Written by `python -m arggym_verl.data arggym_verl/tasks/gsm8k-hard.yaml`:
   # the screened questions (2-6 passes of 8), dev 200 test rows drawn with seed 0.
   train_files: ${oc.env:ARGGYM_VERL_ROOT}/data/gsm8k-hard/train.parquet
   val_files: ${oc.env:ARGGYM_VERL_ROOT}/data/gsm8k-hard/dev.parquet
@@ -37,8 +37,9 @@ actor_rollout_ref:
   # in which verl hands vLLM the LoRA adapter itself (design.md, "LoRA").
   hybrid_engine: true
   model:
-    # Hub revision c1899de289a04d12100db370d81485cdf75e47ca, BF16 as published.
-    path: ${oc.env:HOME}/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca
+    # Hub revision c1899de289a04d12100db370d81485cdf75e47ca, BF16 as published, from the
+    # Hugging Face cache (scripts/arggym/setup.sh downloads it; run.sh sets HF_HUB_CACHE).
+    path: ${oc.env:HF_HUB_CACHE}/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca
     # The recipe's rank 64, alpha 32, on every linear layer.
     lora_rank: 64
     lora_alpha: 32

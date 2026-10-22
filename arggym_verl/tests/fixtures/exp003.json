@@ -1,0 +1,36 @@
+{
+ "chat_template_kwargs": {
+  "enable_thinking": true
+ },
+ "curriculum": {
+  "floor": 0.01,
+  "half_life": 10,
+  "prior": "results/hf-qwen3.5-4b__xml_tags__cot/metrics.json",
+  "table_every": 5
+ },
+ "dev_sampling": {
+  "max_completion_length": 65536,
+  "min_p": 0.0,
+  "presence_penalty": 1.5,
+  "repetition_penalty": 1.0,
+  "temperature": 1.0,
+  "top_k": 20,
+  "top_p": 0.95
+ },
+ "grpo": {
+  "generation_kwargs": {
+   "presence_penalty": 1.5
+  },
+  "mask_truncated_completions": false,
+  "max_completion_length": 40960,
+  "max_steps": 100,
+  "num_generations_eval": 2,
+  "temperature": 1.0,
+  "top_k": 20,
+  "top_p": 0.95
+ },
+ "model_revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+ "seed": 0,
+ "source": "rl/configs/qwen3.5-4b-003.yaml and evals/conf/model/hf-qwen3.5-4b.yaml through rl.config.eval_model / dev_sampling, ArgGYM a5b05fb",
+ "vllm_max_model_len": 73728
+}

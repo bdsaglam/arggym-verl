@@ -130,6 +130,5 @@ logs
 log
 outputs
 .history
-# arggym_verl: the ArgGYM pool's training split (60 MB) and ArgGYM's code checkout (setup.sh)
+# arggym_verl: the ArgGYM pool's training split (60 MB; scripts/arggym/prepare_data.sh)
 data/arggym-pool/pools/*/train.jsonl
-/.arggym/

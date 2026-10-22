@@ -1,0 +1,53 @@
+{
+ "examples": {
+  "dev": [
+   {
+    "gold": 52.0,
+    "id": "test-992",
+    "prompt": [
+     {
+      "content": "Buford writes many checks every year.  Once per month he writes a check to pay the electric bill.  He also writes a check every month for the gas bill.  Twice per month he writes a check to the church.  And quarterly, he writes a check to the pest and lawn service.  How many checks does Buford write per year?\nPlease reason step by step, and put your final answer within \\boxed{}.",
+      "role": "user"
+     }
+    ]
+   },
+   {
+    "gold": 2.0,
+    "id": "test-1033",
+    "prompt": [
+     {
+      "content": "Melissa is summoned to jury duty. She spends 6 hours a day for 3 days listening to a court case. If Melissa is paid $15 per day but also has to pay $3 for parking each day, how much jury pay does she make per hour after expenses?\nPlease reason step by step, and put your final answer within \\boxed{}.",
+      "role": "user"
+     }
+    ]
+   }
+  ],
+  "train": [
+   {
+    "gold": 990.0,
+    "id": "train-9",
+    "prompt": [
+     {
+      "content": "Tina makes $18.00 an hour.  If she works more than 8 hours per shift, she is eligible for overtime, which is paid by your hourly wage + 1/2 your hourly wage.  If she works 10 hours every day for 5 days, how much money does she make?\nPlease reason step by step, and put your final answer within \\boxed{}.",
+      "role": "user"
+     }
+    ]
+   },
+   {
+    "gold": 35.0,
+    "id": "train-13",
+    "prompt": [
+     {
+      "content": "Jasper will serve charcuterie at his dinner party. He buys 2 pounds of cheddar cheese for $10, a pound of cream cheese that cost half the price of the cheddar cheese, and a pack of cold cuts that cost twice the price of the cheddar cheese. How much does he spend on the ingredients?\nPlease reason step by step, and put your final answer within \\boxed{}.",
+      "role": "user"
+     }
+    ]
+   }
+  ]
+ },
+ "sha256": {
+  "dev": "6e67ba7ee99d2acbb56fd80e1fee983f99461e1e311860411a5f2431a33f764a",
+  "train": "c9255ba0b009888c185b49901f82325fcd2396e124980c6116211758596c1340"
+ },
+ "source": "rl.gsm8k.load_splits and trl_rows on rl/configs/gsm8k-hard-qwen3-0.6b-adapter.yaml with the committed screen, ArgGYM a5b05fb"
+}

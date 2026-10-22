@@ -1,0 +1,105 @@
+{
+ "cases": [
+  {
+   "boxed": "18",
+   "correct": true,
+   "gold": 18.0,
+   "ids": [
+    42,
+    151645
+   ],
+   "reward": 1.0,
+   "text": "<think>\n12 + 6 = 18\n</think>\n\nThe answer is \\boxed{18}."
+  },
+  {
+   "boxed": "17",
+   "correct": false,
+   "gold": 18.0,
+   "ids": [
+    42,
+    151645
+   ],
+   "reward": 0.0,
+   "text": "so \\boxed{17}"
+  },
+  {
+   "boxed": "18",
+   "correct": true,
+   "gold": 18.0,
+   "ids": [
+    42,
+    151645
+   ],
+   "reward": 1.0,
+   "text": "first \\boxed{3}, then \\boxed{18}"
+  },
+  {
+   "boxed": "\\$1,234",
+   "correct": true,
+   "gold": 1234.0,
+   "ids": [
+    42,
+    151645
+   ],
+   "reward": 1.0,
+   "text": "\\boxed{\\$1,234}"
+  },
+  {
+   "boxed": "\\frac{1}{2}",
+   "correct": false,
+   "gold": 0.5,
+   "ids": [
+    42,
+    151645
+   ],
+   "reward": 0.0,
+   "text": "\\boxed{\\frac{1}{2}}"
+  },
+  {
+   "boxed": null,
+   "correct": false,
+   "gold": 18.0,
+   "ids": [
+    42,
+    151645
+   ],
+   "reward": 0.0,
+   "text": "no box at all: 18"
+  },
+  {
+   "boxed": "18",
+   "correct": true,
+   "gold": 18.0,
+   "ids": [
+    42,
+    42
+   ],
+   "reward": 0.0,
+   "text": "cut off but \\boxed{18}"
+  },
+  {
+   "boxed": "-3.50",
+   "correct": true,
+   "gold": -3.5,
+   "ids": [
+    42,
+    151643
+   ],
+   "reward": 1.0,
+   "text": "ends on padding \\boxed{-3.50}"
+  },
+  {
+   "boxed": null,
+   "correct": false,
+   "gold": 1.0,
+   "ids": [],
+   "reward": 0.0,
+   "text": ""
+  }
+ ],
+ "source": "rl.gsm8k.make_reward, ArgGYM a5b05fb",
+ "stop_ids": [
+  151645,
+  151643
+ ]
+}

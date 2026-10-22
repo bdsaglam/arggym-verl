@@ -8,7 +8,7 @@ from conftest import QWEN3_06B, QWEN35_4B
 def test_qwen3_prompt_ids_match_trl():
     from transformers import AutoConfig, AutoTokenizer
 
-    from rl import gsm8k
+    from arggym_verl.vendor import rl_gsm8k as gsm8k
     from verl.utils.tokenizer.continuous_token_wiring import create_continuous_token_builder
 
     tok = AutoTokenizer.from_pretrained(str(QWEN3_06B))

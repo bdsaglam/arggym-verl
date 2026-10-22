@@ -1,0 +1,69 @@
+{
+ "examples": {
+  "dev": [
+   {
+    "id": "attack/L1/last_link_democratic/s2000000",
+    "prompt": [
+     {
+      "content": "Think the problem through step by step before you answer.",
+      "role": "system"
+     },
+     {
+      "content": "The following is a defeasible argumentation theory, evaluated under grounded semantics with the last-link democratic strength ordering.\n\n[premise: go2]\n[premise: bo8]\n[axiom: hr0]\n[premise: -bo8]\n[premise: it5]\n[premise: ip2]\n[premise: ip1]\n[premise: lm3]\n[strict qi3: ku4 -> lp5]\n[strict ny5: hr0 -> ly1]\n[defeasible va6: ip1 => ku4]\n[defeasible ja7: it5 => hv4]\n[defeasible fe3: ip2 => -hv4]\n[defeasible ha6: -bo8 => dw6]\n[defeasible ku3: lm3 => jt1]\n[strict ci4: jt1 -> lp5]\n[prefer_premise: -bo8 > bo8]\n[prefer_rule: ja7 > fe3]\n\nThe claim lp5 is currently justified.\nWhat is the minimal set of directives that makes lp5 overruled?\n\nPermitted additions, written exactly in these forms:\n   [defeasible <name>: <antecedent> => <consequent>]\n   [prefer_rule: <defeasible rule name> > <defeasible rule name>]\n   [prefer_premise: <ordinary premise literal> > <ordinary premise literal>]\n   [premise: -<literal>]   permitted only as the negation of an ordinary premise written above without a leading -\nStrict rules may not be added.\nNew axioms may not be added.\nA prefer_rule may name only defeasible rules and a prefer_premise only ordinary premises, and no preference may name the same one on both sides. A preference may name a defeasible rule or ordinary premise your answer added. A preference naming anything else is dropped and still counts as a directive used.\nEvery rule needs a name, written after the kind and separated from it by a space. A name starts with a letter and continues with letters, digits or underscores, and no rule already in the theory, no earlier line of the answer, and no atom of the theory or of your answer, has used it. An atom is a name without its leading -, so -ko1 uses the atom ko1. The arrow is => for a defeasible rule and -> for a strict one.\nSeveral antecedents are joined with AND. Rule antecedents must be literals already present in the theory. A rule name in a consequent, written -<name>, switches that rule off.\nThe answer must be minimal: one using more than twice the fewest directives that work scores zero. A directive that cannot be read at all scores the whole answer zero, so write only directives.\n\nAnswer format: one directive per line.\nGive your final answer between <answer> and </answer>.",
+      "role": "user"
+     }
+    ]
+   },
+   {
+    "id": "attack/L2/weakest_link_elitist/s2000000",
+    "prompt": [
+     {
+      "content": "Think the problem through step by step before you answer.",
+      "role": "system"
+     },
+     {
+      "content": "The following is a defeasible argumentation theory, evaluated under grounded semantics with the weakest-link elitist strength ordering.\n\n[premise: jv5]\n[premise: io0]\n[premise: go0]\n[premise: fx2]\n[premise: -cq5]\n[premise: ct6]\n[axiom: bs0]\n[premise: cq5]\n[defeasible zy2: io0 => jr0]\n[strict xa1: gx2 -> lq9]\n[strict wu2: bs0 -> cm9]\n[defeasible ga8: ct6 => -im9]\n[defeasible ka7: fx2 => im9]\n[defeasible fo4: jv5 => gx2]\n[defeasible vi0: -cq5 => dw5]\n[strict ta3: jr0 -> lq9]\n[prefer_rule: ka7 > ga8]\n[prefer_premise: -cq5 > cq5]\n\nThe claim lq9 is currently justified.\nWhat is the minimal set of directives that makes lq9 overruled?\n\nPermitted additions, written exactly in these forms:\n   [defeasible <name>: <antecedent> => <consequent>]\n   [prefer_rule: <defeasible rule name> > <defeasible rule name>]\n   [prefer_premise: <ordinary premise literal> > <ordinary premise literal>]\n   [premise: -<literal>]   permitted only as the negation of an ordinary premise written above without a leading -\nStrict rules may not be added.\nNew axioms may not be added.\nA prefer_rule may name only defeasible rules and a prefer_premise only ordinary premises, and no preference may name the same one on both sides. A preference may name a defeasible rule or ordinary premise your answer added. A preference naming anything else is dropped and still counts as a directive used.\nEvery rule needs a name, written after the kind and separated from it by a space. A name starts with a letter and continues with letters, digits or underscores, and no rule already in the theory, no earlier line of the answer, and no atom of the theory or of your answer, has used it. An atom is a name without its leading -, so -ko1 uses the atom ko1. The arrow is => for a defeasible rule and -> for a strict one.\nSeveral antecedents are joined with AND. Rule antecedents must be literals already present in the theory. A rule name in a consequent, written -<name>, switches that rule off.\nThe answer must be minimal: one using more than twice the fewest directives that work scores zero. A directive that cannot be read at all scores the whole answer zero, so write only directives.\n\nAnswer format: one directive per line.\nGive your final answer between <answer> and </answer>.",
+      "role": "user"
+     }
+    ]
+   }
+  ],
+  "train": [
+   {
+    "id": "attack/L1/last_link_elitist/s1000000",
+    "prompt": [
+     {
+      "content": "Think the problem through step by step before you answer.",
+      "role": "system"
+     },
+     {
+      "content": "The following is a defeasible argumentation theory, evaluated under grounded semantics with the last-link elitist strength ordering.\n\n[premise: ku6]\n[premise: -en2]\n[axiom: ko3]\n[premise: ev6]\n[premise: cq3]\n[premise: en2]\n[premise: kr0]\n[premise: fy9]\n[defeasible gi4: kr0 => ir9]\n[strict co0: ir9 -> jr6]\n[defeasible fu2: -en2 => fr3]\n[strict ho2: ko3 -> lt7]\n[defeasible fi9: cq3 => gp5]\n[defeasible li4: ku6 => er8]\n[strict pu7: er8 -> jr6]\n[defeasible xo0: fy9 => -gp5]\n[prefer_premise: -en2 > en2]\n[prefer_rule: fi9 > xo0]\n\nThe claim jr6 is currently justified.\nWhat is the minimal set of directives that makes jr6 overruled?\n\nPermitted additions, written exactly in these forms:\n   [defeasible <name>: <antecedent> => <consequent>]\n   [prefer_rule: <defeasible rule name> > <defeasible rule name>]\n   [prefer_premise: <ordinary premise literal> > <ordinary premise literal>]\n   [premise: -<literal>]   permitted only as the negation of an ordinary premise written above without a leading -\nStrict rules may not be added.\nNew axioms may not be added.\nA prefer_rule may name only defeasible rules and a prefer_premise only ordinary premises, and no preference may name the same one on both sides. A preference may name a defeasible rule or ordinary premise your answer added. A preference naming anything else is dropped and still counts as a directive used.\nEvery rule needs a name, written after the kind and separated from it by a space. A name starts with a letter and continues with letters, digits or underscores, and no rule already in the theory, no earlier line of the answer, and no atom of the theory or of your answer, has used it. An atom is a name without its leading -, so -ko1 uses the atom ko1. The arrow is => for a defeasible rule and -> for a strict one.\nSeveral antecedents are joined with AND. Rule antecedents must be literals already present in the theory. A rule name in a consequent, written -<name>, switches that rule off.\nThe answer must be minimal: one using more than twice the fewest directives that work scores zero. A directive that cannot be read at all scores the whole answer zero, so write only directives.\n\nAnswer format: one directive per line.\nGive your final answer between <answer> and </answer>.",
+      "role": "user"
+     }
+    ]
+   },
+   {
+    "id": "attack/L1/last_link_elitist/s1000001",
+    "prompt": [
+     {
+      "content": "Think the problem through step by step before you answer.",
+      "role": "system"
+     },
+     {
+      "content": "The following is a defeasible argumentation theory, evaluated under grounded semantics with the last-link elitist strength ordering.\n\n[premise: jt4]\n[premise: iv4]\n[premise: am1]\n[premise: -dn8]\n[premise: dn8]\n[axiom: fx2]\n[premise: lx1]\n[premise: ds0]\n[defeasible my5: -dn8 => ku9]\n[strict xu4: dn1 -> im7]\n[defeasible ko0: am1 => dn1]\n[defeasible su8: jt4 => fx8]\n[defeasible na6: iv4 => fm3]\n[strict sy7: fx2 -> cq3]\n[defeasible fa4: lx1 => -fm3]\n[strict qy8: fx8 -> im7]\n[prefer_premise: -dn8 > dn8]\n[prefer_rule: na6 > fa4]\n\nThe claim im7 is currently justified.\nWhat is the minimal set of directives that makes im7 overruled?\n\nPermitted additions, written exactly in these forms:\n   [defeasible <name>: <antecedent> => <consequent>]\n   [prefer_rule: <defeasible rule name> > <defeasible rule name>]\n   [prefer_premise: <ordinary premise literal> > <ordinary premise literal>]\n   [premise: -<literal>]   permitted only as the negation of an ordinary premise written above without a leading -\nStrict rules may not be added.\nNew axioms may not be added.\nA prefer_rule may name only defeasible rules and a prefer_premise only ordinary premises, and no preference may name the same one on both sides. A preference may name a defeasible rule or ordinary premise your answer added. A preference naming anything else is dropped and still counts as a directive used.\nEvery rule needs a name, written after the kind and separated from it by a space. A name starts with a letter and continues with letters, digits or underscores, and no rule already in the theory, no earlier line of the answer, and no atom of the theory or of your answer, has used it. An atom is a name without its leading -, so -ko1 uses the atom ko1. The arrow is => for a defeasible rule and -> for a strict one.\nSeveral antecedents are joined with AND. Rule antecedents must be literals already present in the theory. A rule name in a consequent, written -<name>, switches that rule off.\nThe answer must be minimal: one using more than twice the fewest directives that work scores zero. A directive that cannot be read at all scores the whole answer zero, so write only directives.\n\nAnswer format: one directive per line.\nGive your final answer between <answer> and </answer>.",
+      "role": "user"
+     }
+    ]
+   }
+  ]
+ },
+ "row_json_sha256": {
+  "dev": "7cbb6f8e18a8492e8cdca4d353177442b70c42144df8feb8477bf0126b0f958c",
+  "train": "672d4d2e9e273a630c90bdf08975df956bf10ee4ee6110078ca681a6e4710039"
+ },
+ "sha256": {
+  "dev": "a0f50ef0e34ab1d04e7dcc3b7a3a4b7f5176332f7ff22e98dd7b17f9823c299c",
+  "train": "8c1eb4cdc24c8b8c605bbf960cdda734be95e8d43b7e2caf40613d0f74786913"
+ },
+ "source": "rl.pool.trl_rows on experiment 003's pool (rl/configs/qwen3.5-4b-003.yaml), ArgGYM a5b05fb"
+}

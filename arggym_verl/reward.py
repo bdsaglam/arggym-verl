@@ -11,11 +11,11 @@ pipeline also needs the token ids, to call a completion truncated when its last
 token is neither EOS nor padding, so this manager reads the ids itself and
 decodes them as TRL does (`skip_special_tokens=True`).
 
-GSM8K pays 1 when the last `\\boxed{}` is the gold number (`rl.gsm8k.correct`),
+GSM8K pays 1 when the last `\\boxed{}` is the gold number (`rl_gsm8k.correct`),
 0 otherwise, and 0 when truncated; the completion stays in the loss.
 
-ArgGYM scores through `rl.reward.score`, which is `evals.score.score_one`, the
-eval's scorer, and pays `rl.reward.reward_of`: 1 for a finished success, 0 for a
+ArgGYM scores through `rl_reward.score`, which is `evals_score.score_one`, the
+scorer of ArgGYM's eval harness, and pays `rl_reward.reward_of`: 1 for a finished success, 0 for a
 failure or a truncated completion, which stays in the loss. Where `reward_of`
 returns None (the scorer refused the row) verl has no way to leave a completion
 out of its group's baseline, so it pays 0; `refused` is logged so a refusal is
@@ -39,7 +39,7 @@ from verl.experimental.reward_loop.reward_manager.base import RewardManagerBase
 
 
 def is_truncated(ids: Sequence[int], stop_ids: set) -> bool:
-    """TRL's rule (`rl/reward.py`, `rl/gsm8k.py`): the last token is neither EOS nor padding."""
+    """ArgGYM's rule (its TRL reward functions): the last token is neither EOS nor padding."""
     return bool(ids) and ids[-1] not in stop_ids
 
 
@@ -48,23 +48,23 @@ def score_completion(data_source: str, text: str, ids: Sequence[int], extra_info
     """The reward and what is logged beside it; every value is a float, as verl averages them."""
     truncated = is_truncated(ids, stop_ids)
     if data_source == "gsm8k":
-        from rl import gsm8k
+        from arggym_verl.vendor import rl_gsm8k as gsm8k
 
         success = gsm8k.correct(text, float(extra_info["gold"]))
         return {"score": 0.0 if truncated else float(success),
-                # rl.gsm8k.batch_metrics: a truncated completion counts as a failure.
+                # ArgGYM's rl.gsm8k.batch_metrics: a truncated completion counts as a failure.
                 "acc": float(success and not truncated),
                 "truncated": float(truncated), "length": float(len(ids)),
                 "boxed": float(gsm8k.last_boxed(text) is not None)}
     if data_source == "arggym":
-        from rl import reward as arggym_reward
+        from arggym_verl.vendor import rl_reward as arggym_reward
 
         row = json.loads(extra_info["row_json"])
         rec = arggym_reward.score(text, row, truncated, extra_info["template"])
         paid = arggym_reward.reward_of(rec)
         refused = rec["success"] is None
         return {"score": 0.0 if paid is None else paid,
-                # rl.reward.batch_metrics: success over the rows the scorer accepted,
+                # ArgGYM's rl.reward.batch_metrics: success over the rows the scorer accepted,
                 # a truncated completion scored as it reads, as in eval.
                 "acc": float(bool(rec["success"])), "refused": float(refused),
                 "partial_score": float(rec["score"] or 0.0), "truncated": float(truncated),

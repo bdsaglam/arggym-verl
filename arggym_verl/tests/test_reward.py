@@ -1,40 +1,30 @@
-"""On fixed completions, the verl reward pays what the TRL reward pays, through verl's own plumbing."""
+"""On fixed completions, the verl reward pays what ArgGYM's TRL reward pays, through verl's own plumbing.
+
+ArgGYM's rewards and scorer records come from fixtures/, written by its own code.
+"""
+
+import json
 
 import numpy as np
 import pytest
 import torch
 
 from arggym_verl.reward import ArgGymRewardManager, score_completion
-from conftest import QWEN3_06B
+from conftest import QWEN3_06B, fixture
 
 EOS, PAD, OTHER = 151645, 151643, 42  # Qwen3: <|im_end|>, <|endoftext|>, any token
 STOP = {EOS, PAD}
 
-CASES = [  # (text, gold, ids)
-    ("<think>\n12 + 6 = 18\n</think>\n\nThe answer is \\boxed{18}.", 18.0, [OTHER, EOS]),
-    ("so \\boxed{17}", 18.0, [OTHER, EOS]),
-    ("first \\boxed{3}, then \\boxed{18}", 18.0, [OTHER, EOS]),
-    ("\\boxed{\\$1,234}", 1234.0, [OTHER, EOS]),
-    ("\\boxed{\\frac{1}{2}}", 0.5, [OTHER, EOS]),
-    ("no box at all: 18", 18.0, [OTHER, EOS]),
-    ("cut off but \\boxed{18}", 18.0, [OTHER, OTHER]),
-    ("ends on padding \\boxed{-3.50}", -3.5, [OTHER, PAD]),
-    ("", 1.0, []),
-]
 
 
-def trl_rewards():
-    from rl import gsm8k
-
-    fn = gsm8k.make_reward(sorted(STOP), gather=lambda x: x)
-    texts, golds, ids = zip(*CASES)
-    return fn(list(texts), list(ids), list(golds), id=[f"q{i}" for i in range(len(CASES))])
-
-
-def test_gsm8k_reward_matches_trl():
-    ours = [score_completion("gsm8k", t, ids, {"gold": g}, STOP)["score"]
-            for t, g, ids in CASES]
-    assert ours == trl_rewards()
+def test_gsm8k_reward_matches_arggyms():
+    """ArgGYM's TRL reward (rl.gsm8k.make_reward) on fixed completions, from fixtures/."""
+    want = fixture("gsm8k_rewards.json")
+    stop = set(want["stop_ids"])
+    for case in want["cases"]:
+        info = score_completion("gsm8k", case["text"], case["ids"], {"gold": case["gold"]}, stop)
+        assert info["score"] == case["reward"], case["text"]
+        assert info["boxed"] == float(case["boxed"] is not None)
 
 
 def test_truncated_pays_zero_and_counts_as_failure():
@@ -69,38 +59,37 @@ def test_manager_decodes_the_sampled_ids_as_trl_does():
     assert out["reward_score"] == 1.0
     assert out["reward_extra_info"]["truncated"] == 0.0
     assert out["reward_extra_info"]["length"] == len(ids)
-    from rl import gsm8k
+    from arggym_verl.vendor import rl_gsm8k as gsm8k
 
     trl_text = tok.batch_decode([ids], skip_special_tokens=True)[0]
     assert gsm8k.correct(trl_text, 18.0)
 
 
-def arggym_dev_rows():
-    """Six dev rows of experiment 003's pool, from the committed copy (conftest.ARGGYM_POOL_ROOT)."""
-    from conftest import ARGGYM_POOL_ROOT, TRL_ARGGYM
-    from rl import config as rl_config
-    from rl import pool
+def dev_rows():
+    """Experiment 003's dev rows by id, from the committed pool."""
+    from arggym_verl.vendor import rl_config, rl_pool
+    from conftest import ARGGYM_POOL_ROOT, TASK_ARGGYM
 
-    cfg = rl_config.load(str(TRL_ARGGYM), [f"output_root={ARGGYM_POOL_ROOT}"])
-    elicit = pool.elicitation(cfg["prompt"]["elicitation"])
-    return pool.trl_rows(pool.load_split(cfg, "dev")[:6], cfg["prompt"]["template"], elicit), \
-        cfg["prompt"]["template"]
+    cfg = rl_config.load(str(TASK_ARGGYM), [f"output_root={ARGGYM_POOL_ROOT}"])
+    return {r["id"]: r for r in rl_pool.load_split(cfg, "dev")}
 
 
-def test_arggym_reward_matches_trl():
-    """Same scorer and payout: a truncated completion pays 0 in both (rl-003); only a row
-    the scorer refuses, None in TRL, pays 0 here."""
-    from rl import reward as arggym_reward
+def test_arggym_reward_matches_arggyms():
+    """ArgGYM's reward and its eval scorer's record on seven completions of one dev row per
+    task: the reference answer finished, truncated, inside the reasoning only and without
+    tags; a wrong answer; an unfinished thought; nothing. A truncated completion pays 0
+    in both; a row the scorer refused would pay 0 here and None in TRL."""
+    from arggym_verl.vendor import rl_reward
 
-    rows, template = arggym_dev_rows()
-    texts = ["<think>\nhmm\n</think>\n\n<answer>yes</answer>", "no tags at all",
-             "<think>\nloop loop", "</think><answer></answer>", "<answer>A</answer>", ""]
-    ids = [[OTHER, EOS], [OTHER, EOS], [OTHER, OTHER], [OTHER, PAD], [OTHER, EOS], []]
-    trl = arggym_reward.make_reward(sorted(STOP), template, gather=lambda x: x)(
-        texts, ids, [r["row_json"] for r in rows])
-    ours = [score_completion("arggym", t, i, {"row_json": r["row_json"], "template": template},
-                             STOP) for t, i, r in zip(texts, ids, rows)]
-    for t, o in zip(trl, ours, strict=True):
-        assert o["score"] == (0.0 if t is None else t)
-        assert (t is None) == (o["refused"] == 1.0)
-    assert ours[2]["truncated"] == 1.0 and trl[2] == 0.0 and ours[2]["score"] == 0.0
+    want, rows = fixture("arggym_rewards.json"), dev_rows()
+    stop = set(want["stop_ids"])
+    for case in want["cases"]:
+        row = rows[case["row_id"]]
+        extra = {"row_json": json.dumps(row), "template": want["template"]}
+        ours = score_completion("arggym", case["text"], case["ids"], extra, stop)
+        assert ours["score"] == (0.0 if case["reward"] is None else case["reward"]), case["case"]
+        assert ours["refused"] == float(case["reward"] is None)
+        rec = rl_reward.score(case["text"], row, bool(ours["truncated"]), want["template"])
+        assert {k: rec[k] for k in case["record"]} == case["record"], (case["row_id"], case["case"])
+    assert {c["case"] for c in want["cases"] if c["reward"] == 1.0} == {
+        "reference", "reference_in_reasoning_only", "reference_without_tags"}

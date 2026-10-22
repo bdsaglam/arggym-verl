@@ -1,11 +1,13 @@
-"""The curriculum draws and learns as the TRL pipeline's, one block a step, and resumes.
+"""The curriculum draws and learns as ArgGYM's TRL pipeline's, one block a step, and resumes.
 
-The TRL side is `rl.train.build_curriculum` on 003's config and training rows, as
-`rl.train` calls it, set to one block of 16 prompts a step with each prompt
-yielded once (verl's batch). The verl side is `arggym_verl.curriculum` on the
-training parquet and the ArgGYM config, fed the step's completions in a shuffled
-order, as `_balance_batch` leaves them, in the reward's logged fields.
+The TRL side is fixtures/curriculum_trace.json: ArgGYM's `rl.train.build_curriculum` on
+003's config and training rows, set to one block of 16 prompts a step with each prompt
+yielded once (verl's batch), fed 40 steps of `completions` below in its own order. The
+verl side is `arggym_verl.curriculum` on the training parquet and the ArgGYM config, fed
+the same completions in a shuffled order, as `_balance_batch` leaves them, in the
+reward's logged fields.
 """
+import json
 import random
 from types import SimpleNamespace
 
@@ -35,24 +37,14 @@ def parquet():
 
 
 @pytest.fixture(scope="module")
-def trl_setup():
-    from conftest import ARGGYM_POOL_ROOT, TRL_ARGGYM
-    from rl import config as rl_config
-    from rl import pool
+def trace():
+    from conftest import fixture
 
-    cfg = rl_config.load(str(TRL_ARGGYM), [f"output_root={ARGGYM_POOL_ROOT}"])
-    rows = pool.trl_rows(pool.restrict(pool.load_split(cfg, "train"), cfg.get("train_cells")),
-                         cfg["prompt"]["template"], pool.elicitation(cfg["prompt"]["elicitation"]))
-    return cfg, rows
+    return fixture("curriculum_trace.json")
 
 
-def trl_curriculum(trl_setup, prompts_per_step):
-    from rl.train import build_curriculum
-
-    cfg, rows = trl_setup
-    cfg = {**cfg, "prompts_per_step": prompts_per_step,
-           "grpo": {**cfg["grpo"], "num_generations": 1, "gradient_accumulation_steps": 1}}
-    return build_curriculum(cfg, rows)
+def cell_key(cell):
+    return f"{cell[0]}|L{cell[1]}"
 
 
 def ours(arggym, parquet):
@@ -63,8 +55,8 @@ def ours(arggym, parquet):
 
 def completions(step, rows, extra_info, n=6):
     """A synthetic step: n completions a drawn row, success depending on the row so cells
-    move apart; some truncated, a few refused. One dict per completion, both pipelines'
-    fields: TRL's reward record and verl's (extra_info, reward_extra_info)."""
+    move apart; some truncated, a few refused. One dict per completion with verl's
+    (extra_info, reward_extra_info). The fixture's TRL side was fed the same draws."""
     rng = random.Random(step)
     out = []
     for r in rows:
@@ -74,9 +66,7 @@ def completions(step, rows, extra_info, n=6):
             refused = rng.random() < 0.03
             success = None if refused else rng.random() < p
             truncated = rng.random() < 0.1
-            out.append({"trl": {"id": info["id"], "task": info["task"], "level": info["level"],
-                                "success": success, "truncated": truncated},
-                        "info": info,
+            out.append({"info": info,
                         "reward": {"acc": float(bool(success)), "refused": float(refused),
                                    "truncated": float(truncated)}})
     return out
@@ -91,40 +81,38 @@ def feed(curriculum, batch, shuffle_seed):
                                         [c["reward"] for c in batch]))
 
 
-def test_config_is_003s_curriculum(arggym, trl_setup):
-    cfg, _ = trl_setup
-    assert dict(arggym.data.curriculum) == cfg["curriculum"]
-    assert arggym.data.seed == cfg["seed"] == 0
+def test_config_is_003s_curriculum(arggym):
+    from conftest import fixture
+
+    exp003 = fixture("exp003.json")
+    want = {**exp003["curriculum"], "prior": "data/arggym-prior/hf-qwen3.5-4b__xml_tags__cot.json"}
+    assert dict(arggym.data.curriculum) == want
+    assert arggym.data.seed == exp003["seed"] == 0
     assert arggym.data.dataloader_num_workers == 0
 
 
-def test_cells_and_prior_are_trls(arggym, parquet, trl_setup):
-    trl, mine = trl_curriculum(trl_setup, 16), ours(arggym, parquet)
-    assert mine.cells == trl.cells and len(mine.cells) == 57
-    assert sum(map(len, mine.cells.values())) == 5700
-    assert mine.counts == trl.counts
+def test_cells_and_prior_are_trls(arggym, parquet, trace):
+    mine = ours(arggym, parquet)
+    assert {cell_key(c): v for c, v in mine.cells.items()} == trace["initial"]["cells"]
+    assert {cell_key(c): v for c, v in mine.counts.items()} == trace["initial"]["counts"]
+    assert len(mine.cells) == 57 and sum(map(len, mine.cells.values())) == 5700
     # Every training cell has a base-eval prior (8 samples a cell).
     assert all(sum(v) == 8 for v in mine.counts.values())
 
 
-def test_matches_trl_step_by_step(arggym, parquet, trl_setup):
+def test_matches_trl_step_by_step(arggym, parquet, trace):
     """Same prompts drawn, same estimates after every step's update, for 40 steps."""
-    from rl.curriculum import group_outcomes
-
-    trl, mine = trl_curriculum(trl_setup, 16), ours(arggym, parquet)
+    mine = ours(arggym, parquet)
     extra_info = parquet["extra_info"]
-    t_it, m_it = iter(trl), iter(mine)
-    for step in range(40):
-        t_rows = [next(t_it) for _ in range(16)]
+    m_it = iter(mine)
+    for step, want in enumerate(trace["steps"]):
         m_rows = [next(m_it) for _ in range(16)]
-        assert m_rows == t_rows, step
-        assert mine.draws[step]["cells"] == trl.draws[step]["cells"]
-        batch = completions(step, m_rows, extra_info)
-        trl.update(group_outcomes([c["trl"] for c in batch]))  # TRL's batch order
-        feed(mine, batch, shuffle_seed=step)  # verl's balanced order
-        assert mine.counts == trl.counts, step
-        assert mine.draws[step]["outcomes"] == trl.draws[step]["outcomes"]
-    assert mine.state_dict() == trl.state_dict()
+        assert m_rows == want["rows"], step
+        assert mine.draws[step]["cells"] == want["cells"]
+        feed(mine, completions(step, m_rows, extra_info), shuffle_seed=step)  # verl's order
+        assert {cell_key(c): v for c, v in mine.counts.items()} == want["counts"], step
+        assert mine.draws[step]["outcomes"] == want["outcomes"]
+    assert json.loads(json.dumps(mine.state_dict())) == trace["final_state"]
     # The estimates moved away from the prior.
     assert len({round(mine.pass_rate(c), 3) for c in mine.cells}) > 40
 

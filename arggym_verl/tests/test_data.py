@@ -1,110 +1,122 @@
-"""The verl parquet holds exactly the rows, prompts and gold answers ArgGYM's selection gives.
+"""The verl parquet holds exactly the rows, prompts and gold answers of ArgGYM's selection.
 
-GSM8K: the screen output is committed under data/, so a missing or partial screen fails
-here (rl.gsm8k.screened checks all 8,792 questions are present) rather than skipping.
-ArgGYM: experiment 003's pool under data/arggym-pool; without its train.jsonl the
-ArgGYM tests fail (rl.pool.load_split refuses a missing split).
+The expected values are ArgGYM's own outputs (fixtures/, the committed manifests and
+pool summary); the parquet is written here by `arggym_verl.data` from the vendored code.
+GSM8K reads the committed screen and the Hub's openai/gsm8k. ArgGYM reads experiment
+003's pool under data/arggym-pool; without its train.jsonl (scripts/arggym/prepare_data.sh)
+the ArgGYM tests fail.
 """
+import hashlib
 import json
 
 import pandas as pd
 import pytest
 
 from arggym_verl import data
-from conftest import ROOT, SCREEN, TRL_GSM8K
+from conftest import ARGGYM_POOL_ROOT, ROOT, TASK_ARGGYM, TASK_GSM8K, fixture
+
+
+def sha(obj):
+    return hashlib.sha256(json.dumps(obj, sort_keys=True).encode()).hexdigest()
+
+
+def written(cfg, tmp_path_factory, name):
+    out = tmp_path_factory.mktemp(name)
+    data.write(data.build(cfg), out, {})
+    return {s: pd.read_parquet(out / f"{s}.parquet") for s in ("train", "dev")}
+
+
+def messages(prompt):
+    return [dict(m) for m in prompt]
 
 
 @pytest.fixture(scope="module")
-def trl_and_verl(tmp_path_factory):
-    from rl import config as rl_config
-    from rl import gsm8k
+def gsm8k(tmp_path_factory):
+    from arggym_verl.vendor import rl_config
 
-    cfg = rl_config.load(str(TRL_GSM8K), [f"data.screen.path={SCREEN}"])
-    train, dev = gsm8k.load_splits(cfg["data"])
-    out = tmp_path_factory.mktemp("gsm8k")
-    data.write(data.build(cfg), out, {})
-    return ({"train": gsm8k.trl_rows(train), "dev": gsm8k.trl_rows(dev)},
-            {s: pd.read_parquet(out / f"{s}.parquet") for s in ("train", "dev")})
+    return written(rl_config.load(str(TASK_GSM8K)), tmp_path_factory, "gsm8k")
 
 
 @pytest.mark.parametrize("split", ["train", "dev"])
-def test_same_ids_in_the_same_order(trl_and_verl, split):
-    trl, verl = trl_and_verl
-    assert [r["id"] for r in trl[split]] == [e["id"] for e in verl[split]["extra_info"]]
+def test_gsm8k_rows_prompts_and_gold_are_arggyms(gsm8k, split):
+    df, want = gsm8k[split], fixture("gsm8k_prompts.json")
+    got = [[e["id"], messages(p), e["gold"]] for p, e in zip(df["prompt"], df["extra_info"])]
+    assert got[:2] == [[r["id"], r["prompt"], r["gold"]] for r in want["examples"][split]]
+    assert sha(got) == want["sha256"][split]
+    assert (df["agent_name"] == split).all()
 
 
 @pytest.mark.parametrize("split", ["train", "dev"])
-def test_same_prompts_and_gold(trl_and_verl, split):
-    trl, verl = trl_and_verl
-    df = verl[split]
-    for r, prompt, extra, agent in zip(trl[split], df["prompt"], df["extra_info"],
-                                       df["agent_name"], strict=True):
-        assert [dict(m) for m in prompt] == r["prompt"]
-        assert extra["gold"] == r["gold"]
-        assert agent == split
+def test_gsm8k_committed_manifest_has_the_same_ids(gsm8k, split):
+    """The parquet a run reads was written with these ids (data/gsm8k-hard/manifest.json)."""
+    manifest = json.loads((ROOT / "data/gsm8k-hard/manifest.json").read_text())
+    assert manifest["ids"][split] == [e["id"] for e in gsm8k[split]["extra_info"]]
 
 
-def test_dev_is_200_screened_test_rows(trl_and_verl):
-    _, verl = trl_and_verl
-    ids = [e["id"] for e in verl["dev"]["extra_info"]]
+def test_gsm8k_dev_is_200_screened_test_rows(gsm8k):
+    ids = [e["id"] for e in gsm8k["dev"]["extra_info"]]
     assert len(ids) == len(set(ids)) == 200
     assert all(i.startswith("test-") for i in ids)
-    assert all(e["id"].startswith("train-") for e in verl["train"]["extra_info"])
-
-
-@pytest.mark.parametrize("split", ["train", "dev"])
-def test_committed_manifest_has_the_same_ids(trl_and_verl, split):
-    """The parquet a run reads was written with these ids (data/gsm8k-hard/manifest.json)."""
-    _, verl = trl_and_verl
-    manifest = json.loads((ROOT / "data/gsm8k-hard/manifest.json").read_text())
-    assert manifest["ids"][split] == [e["id"] for e in verl[split]["extra_info"]]
+    assert all(e["id"].startswith("train-") for e in gsm8k["train"]["extra_info"])
 
 
 @pytest.fixture(scope="module")
-def arggym_trl_and_verl(tmp_path_factory):
-    """Experiment 003's rows from rl.pool, and the parquet arggym_verl.data writes from them.
+def arggym_cfg():
+    from arggym_verl.vendor import rl_config
 
-    Needs the pool's train.jsonl under data/arggym-pool (README, "Data"); fails without it.
-    """
-    from conftest import ARGGYM_POOL_ROOT, TRL_ARGGYM
-    from rl import config as rl_config
-    from rl import pool
+    return rl_config.load(str(TASK_ARGGYM), [f"output_root={ARGGYM_POOL_ROOT}"])
 
-    cfg = rl_config.load(str(TRL_ARGGYM), [f"output_root={ARGGYM_POOL_ROOT}"])
-    trl = {"train": pool.restrict(pool.load_split(cfg, "train"), cfg["train_cells"]),
-           "dev": pool.load_split(cfg, "dev")}
-    out = tmp_path_factory.mktemp("arggym")
-    data.write(data.build(cfg), out, {})
-    return cfg, trl, {s: pd.read_parquet(out / f"{s}.parquet") for s in ("train", "dev")}
+
+@pytest.fixture(scope="module")
+def arggym(arggym_cfg, tmp_path_factory):
+    return written(arggym_cfg, tmp_path_factory, "arggym")
 
 
 @pytest.mark.parametrize("split", ["train", "dev"])
-def test_arggym_same_ids_as_003(arggym_trl_and_verl, split):
-    _, trl, verl = arggym_trl_and_verl
-    ids = [e["id"] for e in verl[split]["extra_info"]]
-    assert ids == [r["id"] for r in trl[split]]
+def test_pool_is_003s(arggym_cfg, split):
+    """The pool's rows hash to what ArgGYM's rl.pool recorded when it built 003's pool."""
+    from arggym.core.freeze import taskset_hash
+
+    from arggym_verl.vendor import rl_pool
+
+    assert rl_pool.pool_dir(arggym_cfg).name == "0df63cbebe86"
+    summary = json.loads((rl_pool.pool_dir(arggym_cfg) / "summary.json").read_text())
+    assert taskset_hash(rl_pool.load_split(arggym_cfg, split)) == summary[split]["taskset_hash"]
+
+
+@pytest.mark.parametrize("split", ["train", "dev"])
+def test_arggym_ids_prompts_and_rows_are_003s(arggym, split):
+    df, want = arggym[split], fixture("arggym_prompts.json")
+    got = [[e["id"], messages(p)] for p, e in zip(df["prompt"], df["extra_info"])]
+    assert got[:2] == [[r["id"], r["prompt"]] for r in want["examples"][split]]
+    assert sha(got) == want["sha256"][split]
+    assert sha([e["row_json"] for e in df["extra_info"]]) == want["row_json_sha256"][split]
     manifest = json.loads((ROOT / "data/arggym-qwen3.5-4b/manifest.json").read_text())
-    assert manifest["ids"][split] == ids
+    assert manifest["ids"][split] == [e["id"] for e in df["extra_info"]]
 
 
-def test_arggym_trains_on_the_57_cells_and_evaluates_on_all_96(arggym_trl_and_verl):
-    cfg, _, verl = arggym_trl_and_verl
-    listed = {(t, lv) for t, levels in cfg["train_cells"].items() for lv in levels}
-    train = {(e["task"], e["level"]) for e in verl["train"]["extra_info"]}
-    dev = [(e["task"], e["level"]) for e in verl["dev"]["extra_info"]]
+def test_arggym_trains_on_the_57_cells_and_evaluates_on_all_96(arggym_cfg, arggym):
+    listed = {(t, lv) for t, levels in arggym_cfg["train_cells"].items() for lv in levels}
+    train = {(e["task"], e["level"]) for e in arggym["train"]["extra_info"]}
+    dev = [(e["task"], e["level"]) for e in arggym["dev"]["extra_info"]]
     assert len(listed) == 57 and train == listed
-    assert len(verl["train"]) == 5700
+    assert len(arggym["train"]) == 5700
     assert len(dev) == len(set(dev)) == 96
 
 
-def test_arggym_prompts_are_003s(arggym_trl_and_verl):
-    from rl import pool
+def test_pool_refuses_seed_windows_that_overlap_the_eval_tasksets(arggym_cfg):
+    """rl.pool's guard, on the eval specs shipped in arggym_verl/vendor/conf."""
+    from arggym_verl.vendor import rl_config, rl_pool
 
-    cfg, trl, verl = arggym_trl_and_verl
-    elicit = pool.elicitation(cfg["prompt"]["elicitation"])
-    for split in ("train", "dev"):
-        want = pool.trl_rows(trl[split], cfg["prompt"]["template"], elicit)
-        for r, prompt, extra in zip(want, verl[split]["prompt"], verl[split]["extra_info"],
-                                    strict=True):
-            assert [dict(m) for m in prompt] == r["prompt"]
-            assert extra["row_json"] == r["row_json"]
+    rl_pool.check_windows(arggym_cfg)
+    bad = rl_config.apply(arggym_cfg, ["data.dev.seed_start=0"])
+    with pytest.raises(SystemExit, match="seed windows overlap"):
+        rl_pool.check_windows(bad)
+
+
+def test_eval_keys_cover_both_eval_tasksets():
+    """7,200 standard rows (the lite taskset is a subset): one question key each."""
+    from arggym_verl.vendor import rl_pool
+
+    questions, theories = rl_pool.eval_keys()
+    assert len(questions) == 7200 and 0 < len(theories) <= 7200

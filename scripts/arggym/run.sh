@@ -18,22 +18,22 @@ OUT="$ROOT/outputs/$RUN"
 mkdir -p "$OUT"
 
 export ARGGYM_VERL_ROOT="$ROOT"
-# ArgGYM's rl/ and evals/ (data selection, prompts, scorers) are imported from its code
-# at the pinned commit, which setup.sh checks out into .arggym.
-export ARGGYM_ROOT=${ARGGYM_ROOT:-$ROOT/.arggym}
-export PYTHONPATH="$ROOT:$ARGGYM_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export TRACKIO_DIR="$ROOT/outputs/trackio"
 export VERL_FILE_LOGGER_PATH="$OUT/metrics.jsonl"
 export ARGGYM_VERL_REWARD_LOG="$OUT/rewards"
 export TOKENIZERS_PARALLELISM=false
-# As the TRL server (rl/launch.py): vLLM's own sampler, not FlashInfer's, whose
-# top-k/top-p kernel JIT-compiles with the system nvcc, too old on this machine.
+# As ArgGYM's TRL server (rl/launch.py): vLLM's own sampler, not FlashInfer's, whose
+# top-k/top-p kernel JIT-compiles with the system nvcc and fails when that is older
+# than the venv's CUDA 13.0.
 export VLLM_USE_FLASHINFER_SAMPLER=0
+# The configs read the pinned model snapshots from the Hugging Face cache.
+export HF_HUB_CACHE=${HF_HUB_CACHE:-$("$ROOT/.venv/bin/python" -c 'from huggingface_hub import constants; print(constants.HF_HUB_CACHE)')}
 export PATH="$ROOT/.venv/bin:$PATH"
 
 {
   echo "verl $(git -C "$ROOT" rev-parse HEAD)"
-  echo "arggym $(git -C "$ARGGYM_ROOT" rev-parse HEAD)"
+  echo "arggym $("$ROOT/.venv/bin/python" -c 'from importlib.metadata import version; print(version("arggym"))')"
 } > "$OUT/versions.txt"
 
 "$ROOT/.venv/bin/python" -m arggym_verl.main \

@@ -1,8 +1,6 @@
 {
- "config": "/home/baris/repos/arggym-verl/.arggym/rl/configs/qwen3.5-4b-003.yaml",
- "overrides": [
-  "output_root=/home/baris/repos/arggym-verl/data/arggym-pool"
- ],
+ "config": "arggym_verl/tasks/arggym-003.yaml",
+ "overrides": [],
  "data": {
   "tasks": "all",
   "levels": [
@@ -110,7 +108,8 @@
    5
   ]
  },
- "arggym_git_sha": "a5b05fbe314e5b1eda9f756c8e3841a6ebc8598c",
+ "vendored_from": "a5b05fbe314e5b1eda9f756c8e3841a6ebc8598c",
+ "arggym_version": "2.0.0",
  "n_train": 5700,
  "n_dev": 96,
  "ids": {

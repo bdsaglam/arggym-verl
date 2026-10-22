@@ -182,10 +182,10 @@ def arggym():
 
 @pytest.fixture(scope="module")
 def exp003():
-    from conftest import TRL_ARGGYM
-    from rl import config as rl_config
+    """003's settings, read by ArgGYM's rl.config from its run and eval-model configs."""
+    from conftest import fixture
 
-    return rl_config.load(str(TRL_ARGGYM))
+    return fixture("exp003.json")
 
 
 def test_arggym_keeps_the_gsm8k_algorithm(cfg, arggym):
@@ -218,12 +218,9 @@ def test_arggym_batch_arithmetic_pads_nothing_on_three_gpus(arggym):
 
 def test_arggym_task_is_003s(arggym, exp003):
     """Model revision, thinking, the training cap and sampling, dev sampling and samples."""
-    from rl import config as rl_config
-
     r, g = arggym.actor_rollout_ref.rollout, exp003["grpo"]
-    assert arggym.actor_rollout_ref.model.path.endswith(exp003["model"]["revision"])
-    em = rl_config.eval_model(exp003)
-    assert dict(arggym.data.apply_chat_template_kwargs) == em["chat_template_kwargs"] \
+    assert arggym.actor_rollout_ref.model.path.endswith(exp003["model_revision"])
+    assert dict(arggym.data.apply_chat_template_kwargs) == exp003["chat_template_kwargs"] \
         == {"enable_thinking": True}
     loops = agent_loops(arggym)
     # Training rollouts: 003's cap and sampling, the card's presence penalty.
@@ -232,7 +229,7 @@ def test_arggym_task_is_003s(arggym, exp003):
     assert g["max_completion_length"] == 40960 and not g["mask_truncated_completions"]
     assert (r.temperature, r.top_p, r.top_k) == (g["temperature"], g["top_p"], g["top_k"])
     # Dev: the eval config's sampling, cap and presence penalty, 003's samples per row.
-    dev = rl_config.dev_sampling(exp003)
+    dev = exp003["dev_sampling"]
     v = r.val_kwargs
     assert (v.temperature, v.top_p, v.top_k) == (dev["temperature"], dev["top_p"], dev["top_k"])
     assert (dev["min_p"], dev["repetition_penalty"]) == (0.0, 1.0)  # vLLM's defaults
@@ -240,7 +237,7 @@ def test_arggym_task_is_003s(arggym, exp003):
         == {"presence_penalty": 1.5}
     assert arggym.data.max_response_length == dev["max_completion_length"] == 65536
     assert v.n == g["num_generations_eval"] == 2
-    assert r.max_model_len == exp003["vllm"]["max_model_len"] == 73728
+    assert r.max_model_len == exp003["vllm_max_model_len"] == 73728
     assert arggym.data.max_prompt_length + arggym.data.max_response_length <= r.max_model_len
     assert arggym.trainer.total_training_steps == g["max_steps"] == 100
     t = arggym.trainer

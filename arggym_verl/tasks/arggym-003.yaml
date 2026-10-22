@@ -1,0 +1,79 @@
+# ArgGYM experiment 003's rows: `python -m arggym_verl.data` reads this file.
+# From ArgGYM's rl/configs/qwen3.5-4b-003.yaml at a5b05fb, its `prompt`, `data` and
+# `train_cells` blocks as written there. `data` names the pool directory (a hash of
+# the block, pools/0df63cbebe86), so it must stay byte-for-byte equal in content.
+task: arggym
+# The pool is built under <output_root>/pools/<hash>, relative to the repository root.
+output_root: data/arggym-pool
+
+prompt:
+  template: xml_tags
+  elicitation: cot
+
+data:
+  tasks: all
+  levels: [1, 2, 3, 4, 5, 6, 7, 8]
+  # The same seed windows as the Qwen3-4B pools; rl/pool.py refuses an overlap
+  # with the eval specs. Pools hold text, not tokens, so they do not depend on
+  # the model. 12 tasks x 8 levels x 4 orderings x 25 = 9,600 rows, 100 a
+  # (task, level) cell, which the curriculum draws from without replacement.
+  train: {seed_start: 1000000, take: 25, scan_limit: 100}
+  # One row per (task, level), orderings rotated: 96 dev prompts. Dev success
+  # is also logged for levels 1-4 and 5-8, so the first stays comparable with
+  # the 48-prompt dev split of qwen3.5-4b.yaml.
+  dev: {seed_start: 2000000, take: 1, scan_limit: 40, per_task_level: 1}
+  # `data` is 002's to the byte, so the run reuses 002's pool and dev split and
+  # its step-0 dev score is 002's measurement again. Dev stays all 96 cells and
+  # is what selects: training on a subset could cost the cells left out, and the
+  # subset's own dev rows (57 prompts x 2 samples) are too few to select on.
+  # Dev success on the training cells is read from dev/step_*.jsonl.
+
+# 003: training draws only from these cells, 57 of the 96 (5,700 of the 9,600
+# pool rows; rl.pool.restrict). Rule: a cell is in when its pooled pass rate is
+# within [0.15, 0.85]. At 0.15, 8 independent completions all agree with
+# probability 0.27, so at least 73% of the cell's groups would carry signal
+# if every prompt of the cell had its pass rate. Over all 96 cells that figure
+# is 66%, and 002 measured 54% even with the curriculum: pass rates vary between
+# the prompts of one cell, which no cell-level rule removes. The pass rate pools three samplings of
+# a model that had barely moved from base (002 served at most 23% of its update):
+# the base eval on the lite taskset (8 a cell, results/hf-qwen3.5-4b__xml_tags__cot),
+# 002's training groups over steps 1-45 (curriculum.jsonl, a truncation counting
+# as a failure) and 002's dev evaluations at steps 0, 20 and 40 (the 64 of each
+# 192 samples TRL's completions table keeps). Successes / samples per cell:
+train_cells:
+  # attack: in L1 8/14, L2 21/46, L3 15/46, L5 13/70, L8 6/30;
+  #   out L4 3/32, L6 5/56, L7 4/40
+  attack: [1, 2, 3, 5, 8]
+  # attack_defense: in L1 14/46, L2 6/24, L3 25/104, L4 10/40, L5 13/46;
+  #   out L6 0/8, L7 4/30, L8 3/48
+  attack_defense: [1, 2, 3, 4, 5]
+  # claim_chain: in L4 36/64, L5 25/56, L6 5/24, L7 31/86, L8 12/48;
+  #   out L1 12/14, L2 14/14, L3 59/64
+  claim_chain: [4, 5, 6, 7, 8]
+  # counter_argument: in L1 12/24, L2 10/40, L3 5/32, L4 20/56, L5 19/70,
+  #   L7 6/32, L8 5/24; out L6 5/40
+  counter_argument: [1, 2, 3, 4, 5, 7, 8]
+  # counter_argument_strict: in L1 24/48, L2 27/88, L3 16/40, L4 25/56, L5 7/32,
+  #   L6 8/46, L7 12/48, L8 5/24
+  counter_argument_strict: [1, 2, 3, 4, 5, 6, 7, 8]
+  # defeat_diagnosis: in L2 22/30, L4 19/32;
+  #   out L1 7/8, L3 30/32, L5 0/8, L6 0/14, L7 0/16, L8 0/24
+  defeat_diagnosis: [2, 4]
+  # defence: in L1 11/48, L2 18/64, L4 19/48, L5 42/62, L7 16/46, L8 18/56;
+  #   out L3 4/30, L6 8/54
+  defence: [1, 2, 4, 5, 7, 8]
+  # formalization: in L1 26/32, L2 8/38, L3 4/24;
+  #   out L4 0/30, L5 0/22, L6 1/24, L7 0/16, L8 0/24
+  formalization: [1, 2, 3]
+  # perturbation: in L1 13/78;
+  #   out L2 1/24, L3 1/16, L4 1/32, L5 0/24, L6 0/38, L7 0/22, L8 0/24
+  perturbation: [1]
+  # preference_construction: in L1 44/56, L2 11/48, L3 27/64, L4 47/86, L5 12/40,
+  #   L6 42/64, L7 20/54, L8 41/80
+  preference_construction: [1, 2, 3, 4, 5, 6, 7, 8]
+  # semantics_query: in L1 10/32, L2 6/38;
+  #   out L3 4/32, L4 2/24, L5 3/48, L6 0/8, L7 0/46, L8 1/30
+  semantics_query: [1, 2]
+  # status_query: in L1 27/32, L2 35/48, L3 22/40, L4 19/56, L5 3/14;
+  #   out L6 3/32, L7 2/32, L8 4/46
+  status_query: [1, 2, 3, 4, 5]

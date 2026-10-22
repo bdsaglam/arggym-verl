@@ -1,7 +1,7 @@
 """ArgGYM's pass-rate curriculum as verl's training sampler.
 
-The sampler is the TRL pipeline's own class, `rl.curriculum.Curriculum`, imported
-from the pinned ArgGYM code: each step's prompts are drawn from the (task, level)
+The sampler is ArgGYM's own class, `Curriculum` (vendored as
+`arggym_verl.vendor.rl_curriculum`): each step's prompts are drawn from the (task, level)
 cells in proportion to p(1 - p) + floor, p being the cell's pass rate, started
 from the base model's eval through a Beta(1, 1) prior and updated from every
 training group with a half-life counted in groups of the cell; rows within a cell
@@ -21,10 +21,9 @@ Differences from TRL's use of the same class, all in how it is driven:
   pull indices ahead of the step.
 - Resuming: the sampler's `state_dict` goes into verl's `data.pt` with the
   dataloader's (torchdata saves a sampler that has one). Checkpoints fall
-  between steps, after the update and before the next draw, so the current
-  state is the one TRL's `state_for_step` would return.
+  between steps, after the update and before the next draw.
 
-What counts as a pass is `rl.curriculum.group_outcomes`'s rule on the reward's
+What counts as a pass is `group_outcomes`'s rule on the reward's
 logged fields: a success that did not truncate; a completion the scorer refused
 is left out.
 """
@@ -34,7 +33,8 @@ import math
 from collections import Counter
 from typing import Any, Dict, List, Sequence
 
-from rl.curriculum import Cell, Curriculum, base_pass_counts, group_outcomes, summary
+from arggym_verl.vendor.rl_curriculum import (Cell, Curriculum, base_pass_counts,
+                                              group_outcomes, summary)
 
 
 class StepCurriculum(Curriculum):
@@ -61,7 +61,7 @@ class StepCurriculum(Curriculum):
 
 
 def cells_of(dataset) -> Dict[Cell, List[int]]:
-    """Dataset positions per (task, level), as `rl.train.build_curriculum` builds them."""
+    """Dataset positions per (task, level), as ArgGYM's `rl.train.build_curriculum` builds them."""
     cells: Dict[Cell, List[int]] = {}
     for i, info in enumerate(dataset.dataframe["extra_info"]):
         if info["index"] != i:
@@ -93,10 +93,10 @@ def check_setup(config, trainer_mode: str, parameter_sync_step: int) -> None:
 
 
 def build(data_config, dataset) -> StepCurriculum:
-    from rl import pool
+    from arggym_verl.vendor.rl_pool import ROOT
 
     c = data_config.curriculum
-    return StepCurriculum(cells_of(dataset), base_pass_counts(str(pool.ROOT / c.prior)),
+    return StepCurriculum(cells_of(dataset), base_pass_counts(str(ROOT / c.prior)),
                           prompts_per_step=data_config.train_batch_size, num_generations=1,
                           steps_per_generation=1, seed=data_config.seed,
                           half_life=c.half_life, floor=c.floor)

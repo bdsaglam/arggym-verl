@@ -1,13 +1,17 @@
 """Write a task's training and dev splits as the parquet files verl reads.
 
-    python -m arggym_verl.data $ARGGYM_ROOT/rl/configs/gsm8k-hard-qwen3-0.6b-adapter.yaml \
-        --out data/gsm8k-hard data.screen.path=$PWD/data/gsm8k-screen/qwen3-0.6b-c1899de
+    python -m arggym_verl.data arggym_verl/tasks/gsm8k-hard.yaml --out data/gsm8k-hard
+    python -m arggym_verl.data arggym_verl/tasks/arggym-003.yaml --out data/arggym-qwen3.5-4b
 
-The first argument is the TRL run's own config, read by ArgGYM's `rl.config`, and
-the rows come from ArgGYM's own selection code: `rl.gsm8k.load_splits` for
-`task: gsm8k`, `rl.pool.load_split` for ArgGYM, with the training rows restricted to
-the config's `train_cells` by `rl.pool.restrict`. So both pipelines train and
-evaluate on the same ids, with the same prompt messages.
+scripts/arggym/prepare_data.sh runs both.
+
+The first argument is a task config (`arggym_verl/tasks/`), the `task`, `data`,
+`prompt` and `train_cells` blocks of the ArgGYM TRL run it reproduces; `key=value`
+arguments override it. The rows come from ArgGYM's selection code, vendored in
+`arggym_verl.vendor`: `rl_gsm8k.load_splits` for `task: gsm8k`, `rl_pool.load_split`
+for ArgGYM, with the training rows restricted to `train_cells` by `rl_pool.restrict`.
+An ArgGYM pool that is not there yet is built first (`rl_pool.build`: the `arggym`
+library generates and freezes the rows from fixed seeds, a few minutes on 16 cores).
 
 Each row carries `agent_name`, `train` or `dev`, which picks the agent loop and so
 the sampling overrides of that split (`arggym_verl/config/agent_loops-*.yaml`).
@@ -16,20 +20,24 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Sequence
 
-from rl import config as rl_config
+from arggym_verl.vendor import rl_config
+
+ROOT = Path(__file__).resolve().parents[1]
 
 #: verl's `data_source` per task; dev metrics are logged as `val-core/<data_source>/acc/mean@N`.
 DATA_SOURCE = {"gsm8k": "gsm8k", "arggym": "arggym"}
 
 
 def gsm8k_rows(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
-    from rl import gsm8k
+    from arggym_verl.vendor import rl_gsm8k as gsm8k
 
-    train, dev = gsm8k.load_splits(cfg["data"])
+    data = cfg["data"]
+    if data.get("screen"):
+        data = {**data, "screen": {**data["screen"], "path": str(ROOT / data["screen"]["path"])}}
+    train, dev = gsm8k.load_splits(data)
     out = {}
     for split, rows in (("train", train), ("dev", dev)):
         out[split] = [
@@ -40,17 +48,21 @@ def gsm8k_rows(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
     return out
 
 
-def arggym_rows(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
-    from rl import pool
+def arggym_rows(cfg: Dict[str, Any], workers: int | None = None) -> Dict[str, List[Dict[str, Any]]]:
+    from arggym.core.freeze import usable_cores
 
+    from arggym_verl.vendor import rl_pool as pool
+
+    if not all((pool.pool_dir(cfg) / f"{s}.jsonl").exists() for s in ("train", "dev")):
+        print(f"building the pool in {pool.pool_dir(cfg)}")
+        pool.build(cfg, workers or min(64, usable_cores()))
     elicit = pool.elicitation(cfg["prompt"]["elicitation"])
     template = cfg["prompt"]["template"]
     out = {}
     for split in ("train", "dev"):
         rows = pool.load_split(cfg, split)
         if split == "train":
-            # Training draws only from the config's `train_cells`, as rl.train does; dev keeps
-            # every cell.
+            # Training draws only from the config's `train_cells`; dev keeps every cell.
             rows = pool.restrict(rows, cfg.get("train_cells"))
         rows = pool.trl_rows(rows, template, elicit)
         out[split] = [
@@ -63,21 +75,13 @@ def arggym_rows(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
     return out
 
 
-def build(cfg: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+def build(cfg: Dict[str, Any], workers: int | None = None) -> Dict[str, List[Dict[str, Any]]]:
     task = cfg.get("task", "arggym")
     if task == "gsm8k":
         return gsm8k_rows(cfg)
     if task == "arggym":
-        return arggym_rows(cfg)
+        return arggym_rows(cfg, workers)
     raise SystemExit(f"task {task!r}: gsm8k or arggym")
-
-
-def _git_sha(path: Path) -> str | None:
-    try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=path, text=True,
-                                       stderr=subprocess.DEVNULL).strip()
-    except (OSError, subprocess.CalledProcessError):
-        return None
 
 
 def write(splits: Dict[str, List[Dict[str, Any]]], out: Path, manifest: Dict[str, Any]) -> None:
@@ -92,17 +96,24 @@ def write(splits: Dict[str, List[Dict[str, Any]]], out: Path, manifest: Dict[str
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    from importlib.metadata import version
+
+    from arggym_verl import vendor
+
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("config", help="the TRL run's config in the ArgGYM checkout")
-    p.add_argument("overrides", nargs="*", help="key.sub=value, as rl.launch takes them")
+    p.add_argument("config", help="a task config under arggym_verl/tasks/")
+    p.add_argument("overrides", nargs="*", help="key.sub=value")
     p.add_argument("--out", required=True, type=Path)
+    p.add_argument("--workers", type=int, default=None, help="pool build processes")
     a = p.parse_args(argv)
     cfg = rl_config.load(a.config, a.overrides)
-    splits = build(cfg)
-    write(splits, a.out, {"config": a.config, "overrides": a.overrides, "data": cfg["data"],
-                          "train_cells": cfg.get("train_cells"),
-                          "arggym_git_sha": _git_sha(rl_config.ROOT)})
+    splits = build(cfg, a.workers)
+    config = Path(a.config).resolve()
+    write(splits, a.out, {
+        "config": str(config.relative_to(ROOT)) if config.is_relative_to(ROOT) else str(config),
+        "overrides": a.overrides, "data": cfg["data"], "train_cells": cfg.get("train_cells"),
+        "vendored_from": vendor.SOURCE_COMMIT, "arggym_version": version("arggym")})
     print(json.dumps({s: len(r) for s, r in splits.items()}), "->", a.out)
     return 0
 

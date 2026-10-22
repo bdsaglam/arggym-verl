@@ -1,0 +1,1738 @@
+{
+ "cases": [
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "attack/L1/last_link_democratic/s2000000",
+   "task": "attack",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[defeasible k1: go2 => -va6]\n[defeasible k2: go2 => -ku3]\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "attack/L1/last_link_democratic/s2000000",
+   "task": "attack",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[defeasible k1: go2 => -va6]\n[defeasible k2: go2 => -ku3]\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "attack/L1/last_link_democratic/s2000000",
+   "task": "attack",
+   "text": "<think>\n<answer>\n[defeasible k1: go2 => -va6]\n[defeasible k2: go2 => -ku3]\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "attack/L1/last_link_democratic/s2000000",
+   "task": "attack",
+   "text": "<think>\nok\n</think>\n\n[defeasible k1: go2 => -va6]\n[defeasible k2: go2 => -ku3]"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "attack/L1/last_link_democratic/s2000000",
+   "task": "attack",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "attack/L1/last_link_democratic/s2000000",
+   "task": "attack",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_directives",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "attack/L1/last_link_democratic/s2000000",
+   "task": "attack",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "attack_defense/L1/last_link_democratic/s2000000",
+   "task": "attack_defense",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[defeasible sa: cr4 => -gu7]\n[defeasible sd0: cr4 => -ki2]\n[defeasible sd1: cr4 => -xo0]\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "attack_defense/L1/last_link_democratic/s2000000",
+   "task": "attack_defense",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[defeasible sa: cr4 => -gu7]\n[defeasible sd0: cr4 => -ki2]\n[defeasible sd1: cr4 => -xo0]\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "attack_defense/L1/last_link_democratic/s2000000",
+   "task": "attack_defense",
+   "text": "<think>\n<answer>\n[defeasible sa: cr4 => -gu7]\n[defeasible sd0: cr4 => -ki2]\n[defeasible sd1: cr4 => -xo0]\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "attack_defense/L1/last_link_democratic/s2000000",
+   "task": "attack_defense",
+   "text": "<think>\nok\n</think>\n\n[defeasible sa: cr4 => -gu7]\n[defeasible sd0: cr4 => -ki2]\n[defeasible sd1: cr4 => -xo0]"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "attack_defense/L1/last_link_democratic/s2000000",
+   "task": "attack_defense",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "attack_defense/L1/last_link_democratic/s2000000",
+   "task": "attack_defense",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_directives",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "attack_defense/L1/last_link_democratic/s2000000",
+   "task": "attack_defense",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "claim_chain/L1/last_link_democratic/s2000000",
+   "task": "claim_chain",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[premise: hw9]\n[defeasible mu2: hw9 => cn5]\n[defeasible qu2: cn5 => fx3]\n[defeasible qo9: fx3 => gk5]\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "claim_chain/L1/last_link_democratic/s2000000",
+   "task": "claim_chain",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[premise: hw9]\n[defeasible mu2: hw9 => cn5]\n[defeasible qu2: cn5 => fx3]\n[defeasible qo9: fx3 => gk5]\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "claim_chain/L1/last_link_democratic/s2000000",
+   "task": "claim_chain",
+   "text": "<think>\n<answer>\n[premise: hw9]\n[defeasible mu2: hw9 => cn5]\n[defeasible qu2: cn5 => fx3]\n[defeasible qo9: fx3 => gk5]\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "claim_chain/L1/last_link_democratic/s2000000",
+   "task": "claim_chain",
+   "text": "<think>\nok\n</think>\n\n[premise: hw9]\n[defeasible mu2: hw9 => cn5]\n[defeasible qu2: cn5 => fx3]\n[defeasible qo9: fx3 => gk5]"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "claim_chain/L1/last_link_democratic/s2000000",
+   "task": "claim_chain",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "claim_chain/L1/last_link_democratic/s2000000",
+   "task": "claim_chain",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "empty_answer",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "claim_chain/L1/last_link_democratic/s2000000",
+   "task": "claim_chain",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "counter_argument/L1/last_link_democratic/s2000000",
+   "task": "counter_argument",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[defeasible w: bw8 => -jm4]\n[prefer_rule: w > ne9]\n[defeasible z1: bw8 => -qo1]\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "counter_argument/L1/last_link_democratic/s2000000",
+   "task": "counter_argument",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[defeasible w: bw8 => -jm4]\n[prefer_rule: w > ne9]\n[defeasible z1: bw8 => -qo1]\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "counter_argument/L1/last_link_democratic/s2000000",
+   "task": "counter_argument",
+   "text": "<think>\n<answer>\n[defeasible w: bw8 => -jm4]\n[prefer_rule: w > ne9]\n[defeasible z1: bw8 => -qo1]\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "counter_argument/L1/last_link_democratic/s2000000",
+   "task": "counter_argument",
+   "text": "<think>\nok\n</think>\n\n[defeasible w: bw8 => -jm4]\n[prefer_rule: w > ne9]\n[defeasible z1: bw8 => -qo1]"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "counter_argument/L1/last_link_democratic/s2000000",
+   "task": "counter_argument",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "counter_argument/L1/last_link_democratic/s2000000",
+   "task": "counter_argument",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_directives",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "counter_argument/L1/last_link_democratic/s2000000",
+   "task": "counter_argument",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "counter_argument_strict/L1/last_link_democratic/s2000000",
+   "task": "counter_argument_strict",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[strict cs: bw8 -> -jm4]\n[strict u1: bw8 -> -qo1]\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "counter_argument_strict/L1/last_link_democratic/s2000000",
+   "task": "counter_argument_strict",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[strict cs: bw8 -> -jm4]\n[strict u1: bw8 -> -qo1]\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "counter_argument_strict/L1/last_link_democratic/s2000000",
+   "task": "counter_argument_strict",
+   "text": "<think>\n<answer>\n[strict cs: bw8 -> -jm4]\n[strict u1: bw8 -> -qo1]\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "counter_argument_strict/L1/last_link_democratic/s2000000",
+   "task": "counter_argument_strict",
+   "text": "<think>\nok\n</think>\n\n[strict cs: bw8 -> -jm4]\n[strict u1: bw8 -> -qo1]"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "counter_argument_strict/L1/last_link_democratic/s2000000",
+   "task": "counter_argument_strict",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "counter_argument_strict/L1/last_link_democratic/s2000000",
+   "task": "counter_argument_strict",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_directives",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "counter_argument_strict/L1/last_link_democratic/s2000000",
+   "task": "counter_argument_strict",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "defeat_diagnosis/L1/last_link_democratic/s2000000",
+   "task": "defeat_diagnosis",
+   "text": "<think>\nworking\n</think>\n\n<answer>\nstatus: overruled\ndefeated_at: lv8; defeater: na7; kind: rebut\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "defeat_diagnosis/L1/last_link_democratic/s2000000",
+   "task": "defeat_diagnosis",
+   "text": "<think>\nworking\n</think>\n\n<answer>\nstatus: overruled\ndefeated_at: lv8; defeater: na7; kind: rebut\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "defeat_diagnosis/L1/last_link_democratic/s2000000",
+   "task": "defeat_diagnosis",
+   "text": "<think>\n<answer>\nstatus: overruled\ndefeated_at: lv8; defeater: na7; kind: rebut\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "defeat_diagnosis/L1/last_link_democratic/s2000000",
+   "task": "defeat_diagnosis",
+   "text": "<think>\nok\n</think>\n\nstatus: overruled\ndefeated_at: lv8; defeater: na7; kind: rebut"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "defeat_diagnosis/L1/last_link_democratic/s2000000",
+   "task": "defeat_diagnosis",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "defeat_diagnosis/L1/last_link_democratic/s2000000",
+   "task": "defeat_diagnosis",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "empty_answer",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "defeat_diagnosis/L1/last_link_democratic/s2000000",
+   "task": "defeat_diagnosis",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "defence/L1/last_link_democratic/s2000000",
+   "task": "defence",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[defeasible z0_0: br9 => -ku4]\n[defeasible z1_0: br9 => -ze4]\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "defence/L1/last_link_democratic/s2000000",
+   "task": "defence",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[defeasible z0_0: br9 => -ku4]\n[defeasible z1_0: br9 => -ze4]\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "defence/L1/last_link_democratic/s2000000",
+   "task": "defence",
+   "text": "<think>\n<answer>\n[defeasible z0_0: br9 => -ku4]\n[defeasible z1_0: br9 => -ze4]\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "defence/L1/last_link_democratic/s2000000",
+   "task": "defence",
+   "text": "<think>\nok\n</think>\n\n[defeasible z0_0: br9 => -ku4]\n[defeasible z1_0: br9 => -ze4]"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "defence/L1/last_link_democratic/s2000000",
+   "task": "defence",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "defence/L1/last_link_democratic/s2000000",
+   "task": "defence",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_directives",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "defence/L1/last_link_democratic/s2000000",
+   "task": "defence",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "formalization/L1/last_link_democratic/s2000000",
+   "task": "formalization",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[premise: jk3]\n[defeasible q_1: jk3 => al0]\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "formalization/L1/last_link_democratic/s2000000",
+   "task": "formalization",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[premise: jk3]\n[defeasible q_1: jk3 => al0]\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "formalization/L1/last_link_democratic/s2000000",
+   "task": "formalization",
+   "text": "<think>\n<answer>\n[premise: jk3]\n[defeasible q_1: jk3 => al0]\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "formalization/L1/last_link_democratic/s2000000",
+   "task": "formalization",
+   "text": "<think>\nok\n</think>\n\n[premise: jk3]\n[defeasible q_1: jk3 => al0]"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "formalization/L1/last_link_democratic/s2000000",
+   "task": "formalization",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "formalization/L1/last_link_democratic/s2000000",
+   "task": "formalization",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_directives",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "formalization/L1/last_link_democratic/s2000000",
+   "task": "formalization",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "perturbation/L1/last_link_democratic/s2000000",
+   "task": "perturbation",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n-jo9: overruled\niu0: justified\njo9: justified\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "perturbation/L1/last_link_democratic/s2000000",
+   "task": "perturbation",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n-jo9: overruled\niu0: justified\njo9: justified\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "perturbation/L1/last_link_democratic/s2000000",
+   "task": "perturbation",
+   "text": "<think>\n<answer>\n-jo9: overruled\niu0: justified\njo9: justified\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "perturbation/L1/last_link_democratic/s2000000",
+   "task": "perturbation",
+   "text": "<think>\nok\n</think>\n\n-jo9: overruled\niu0: justified\njo9: justified"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "perturbation/L1/last_link_democratic/s2000000",
+   "task": "perturbation",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "perturbation/L1/last_link_democratic/s2000000",
+   "task": "perturbation",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_pairs",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "perturbation/L1/last_link_democratic/s2000000",
+   "task": "perturbation",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "preference_construction/L1/last_link_democratic/s2000000",
+   "task": "preference_construction",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[prefer_rule: je5 > gu3]\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "preference_construction/L1/last_link_democratic/s2000000",
+   "task": "preference_construction",
+   "text": "<think>\nworking\n</think>\n\n<answer>\n[prefer_rule: je5 > gu3]\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "preference_construction/L1/last_link_democratic/s2000000",
+   "task": "preference_construction",
+   "text": "<think>\n<answer>\n[prefer_rule: je5 > gu3]\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "preference_construction/L1/last_link_democratic/s2000000",
+   "task": "preference_construction",
+   "text": "<think>\nok\n</think>\n\n[prefer_rule: je5 > gu3]"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "preference_construction/L1/last_link_democratic/s2000000",
+   "task": "preference_construction",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "preference_construction/L1/last_link_democratic/s2000000",
+   "task": "preference_construction",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_directives",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "preference_construction/L1/last_link_democratic/s2000000",
+   "task": "preference_construction",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "semantics_query/L1/last_link_democratic/s2000000",
+   "task": "semantics_query",
+   "text": "<think>\nworking\n</think>\n\n<answer>\ndw2 under credulous preferred: justified\nju5 under credulous preferred: overruled\neu9 under grounded: undecided\nju5 under grounded: overruled\nav3 under credulous preferred: justified\ndw2 under grounded: undecided\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "semantics_query/L1/last_link_democratic/s2000000",
+   "task": "semantics_query",
+   "text": "<think>\nworking\n</think>\n\n<answer>\ndw2 under credulous preferred: justified\nju5 under credulous preferred: overruled\neu9 under grounded: undecided\nju5 under grounded: overruled\nav3 under credulous preferred: justified\ndw2 under grounded: undecided\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "semantics_query/L1/last_link_democratic/s2000000",
+   "task": "semantics_query",
+   "text": "<think>\n<answer>\ndw2 under credulous preferred: justified\nju5 under credulous preferred: overruled\neu9 under grounded: undecided\nju5 under grounded: overruled\nav3 under credulous preferred: justified\ndw2 under grounded: undecided\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "semantics_query/L1/last_link_democratic/s2000000",
+   "task": "semantics_query",
+   "text": "<think>\nok\n</think>\n\ndw2 under credulous preferred: justified\nju5 under credulous preferred: overruled\neu9 under grounded: undecided\nju5 under grounded: overruled\nav3 under credulous preferred: justified\ndw2 under grounded: undecided"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "semantics_query/L1/last_link_democratic/s2000000",
+   "task": "semantics_query",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "semantics_query/L1/last_link_democratic/s2000000",
+   "task": "semantics_query",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_parseable_pairs",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "semantics_query/L1/last_link_democratic/s2000000",
+   "task": "semantics_query",
+   "text": ""
+  },
+  {
+   "case": "reference",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "status_query/L1/last_link_democratic/s2000000",
+   "task": "status_query",
+   "text": "<think>\nworking\n</think>\n\n<answer>\njn2: undecided\nbt4: justified\nmy9: overruled\n</answer>"
+  },
+  {
+   "case": "reference_truncated",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "status_query/L1/last_link_democratic/s2000000",
+   "task": "status_query",
+   "text": "<think>\nworking\n</think>\n\n<answer>\njn2: undecided\nbt4: justified\nmy9: overruled\n</answer>"
+  },
+  {
+   "case": "reference_in_reasoning_only",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": true,
+    "no_answer_region": false,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "status_query/L1/last_link_democratic/s2000000",
+   "task": "status_query",
+   "text": "<think>\n<answer>\njn2: undecided\nbt4: justified\nmy9: overruled\n</answer>\n</think>\n\nI am done."
+  },
+  {
+   "case": "reference_without_tags",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "ok",
+    "score": 1.0,
+    "scorer_refused": false,
+    "success": true,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 1.0,
+   "row_id": "status_query/L1/last_link_democratic/s2000000",
+   "task": "status_query",
+   "text": "<think>\nok\n</think>\n\njn2: undecided\nbt4: justified\nmy9: overruled"
+  },
+  {
+   "case": "wrong",
+   "ids": [
+    42,
+    151645
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": false,
+    "reason": "unparseable_tokens:2",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": true
+   },
+   "reward": 0.0,
+   "row_id": "status_query/L1/last_link_democratic/s2000000",
+   "task": "status_query",
+   "text": "<think>\nhmm\n</think>\n\n<answer>no idea</answer>"
+  },
+  {
+   "case": "unfinished_thought",
+   "ids": [
+    42,
+    42
+   ],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "unparseable_tokens:3",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": true,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "status_query/L1/last_link_democratic/s2000000",
+   "task": "status_query",
+   "text": "<think>\nloop loop"
+  },
+  {
+   "case": "empty",
+   "ids": [],
+   "record": {
+    "answer_in_cot": false,
+    "no_answer_region": true,
+    "reason": "no_parseable_lines",
+    "score": 0.0,
+    "scorer_refused": false,
+    "success": false,
+    "truncated": false,
+    "zero_with_region": false
+   },
+   "reward": 0.0,
+   "row_id": "status_query/L1/last_link_democratic/s2000000",
+   "task": "status_query",
+   "text": ""
+  }
+ ],
+ "source": "rl.reward.make_reward and rl.reward.score (evals.score.score_one), ArgGYM a5b05fb; rows are the first dev row of each task in experiment 003's pool",
+ "stop_ids": [
+  151645,
+  151643
+ ],
+ "template": "xml_tags"
+}

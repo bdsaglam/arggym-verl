@@ -1,0 +1,725 @@
+{
+ "source": "results/hf-qwen3.5-4b__xml_tags__cot/metrics.json at ArgGYM a5b05fb (by_task_level, the fields rl.curriculum.base_pass_counts reads): Qwen3.5-4B base eval on taskset-lite, xml_tags template, cot elicitation",
+ "by_task_level": {
+  "attack_defense|L1": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "attack_defense|L10": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack_defense|L11": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack_defense|L12": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack_defense|L13": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "attack_defense|L14": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack_defense|L15": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "attack_defense|L2": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "attack_defense|L3": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "attack_defense|L4": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "attack_defense|L5": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "attack_defense|L6": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "attack_defense|L7": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "attack_defense|L8": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "attack_defense|L9": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "attack|L1": {
+   "n_scored": 8,
+   "success_rate": 0.625
+  },
+  "attack|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "attack|L11": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "attack|L12": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack|L13": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack|L14": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "attack|L15": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack|L2": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "attack|L3": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack|L4": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack|L5": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "attack|L6": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "attack|L7": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "attack|L8": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "attack|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "claim_chain|L1": {
+   "n_scored": 8,
+   "success_rate": 1.0
+  },
+  "claim_chain|L10": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "claim_chain|L11": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "claim_chain|L12": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "claim_chain|L13": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "claim_chain|L14": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "claim_chain|L15": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "claim_chain|L2": {
+   "n_scored": 8,
+   "success_rate": 1.0
+  },
+  "claim_chain|L3": {
+   "n_scored": 8,
+   "success_rate": 1.0
+  },
+  "claim_chain|L4": {
+   "n_scored": 8,
+   "success_rate": 0.875
+  },
+  "claim_chain|L5": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "claim_chain|L6": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "claim_chain|L7": {
+   "n_scored": 8,
+   "success_rate": 0.625
+  },
+  "claim_chain|L8": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "claim_chain|L9": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "counter_argument_strict|L1": {
+   "n_scored": 8,
+   "success_rate": 0.625
+  },
+  "counter_argument_strict|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "counter_argument_strict|L11": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "counter_argument_strict|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "counter_argument_strict|L13": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "counter_argument_strict|L14": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "counter_argument_strict|L15": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "counter_argument_strict|L2": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "counter_argument_strict|L3": {
+   "n_scored": 8,
+   "success_rate": 0.625
+  },
+  "counter_argument_strict|L4": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "counter_argument_strict|L5": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "counter_argument_strict|L6": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "counter_argument_strict|L7": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "counter_argument_strict|L8": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "counter_argument_strict|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "counter_argument|L1": {
+   "n_scored": 8,
+   "success_rate": 0.625
+  },
+  "counter_argument|L10": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "counter_argument|L11": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "counter_argument|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "counter_argument|L13": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "counter_argument|L14": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "counter_argument|L15": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "counter_argument|L2": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "counter_argument|L3": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "counter_argument|L4": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "counter_argument|L5": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "counter_argument|L6": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "counter_argument|L7": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "counter_argument|L8": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "counter_argument|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L1": {
+   "n_scored": 8,
+   "success_rate": 0.875
+  },
+  "defeat_diagnosis|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L11": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L12": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "defeat_diagnosis|L13": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L14": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L15": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L2": {
+   "n_scored": 8,
+   "success_rate": 0.875
+  },
+  "defeat_diagnosis|L3": {
+   "n_scored": 8,
+   "success_rate": 0.875
+  },
+  "defeat_diagnosis|L4": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "defeat_diagnosis|L5": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L6": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L7": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L8": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defeat_diagnosis|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defence|L1": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "defence|L10": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "defence|L11": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "defence|L12": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "defence|L13": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "defence|L14": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "defence|L15": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "defence|L2": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "defence|L3": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "defence|L4": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "defence|L5": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "defence|L6": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "defence|L7": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "defence|L8": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "defence|L9": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "formalization|L1": {
+   "n_scored": 8,
+   "success_rate": 0.625
+  },
+  "formalization|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "formalization|L11": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "formalization|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "formalization|L13": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "formalization|L14": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "formalization|L15": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "formalization|L2": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "formalization|L3": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "formalization|L4": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "formalization|L5": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "formalization|L6": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "formalization|L7": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "formalization|L8": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "formalization|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L1": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "perturbation|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L11": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L13": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L14": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L15": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L2": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L3": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L4": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L5": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L6": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L7": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L8": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "perturbation|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "preference_construction|L1": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "preference_construction|L10": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "preference_construction|L11": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "preference_construction|L12": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "preference_construction|L13": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "preference_construction|L14": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "preference_construction|L15": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "preference_construction|L2": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "preference_construction|L3": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "preference_construction|L4": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "preference_construction|L5": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "preference_construction|L6": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "preference_construction|L7": {
+   "n_scored": 8,
+   "success_rate": 0.5
+  },
+  "preference_construction|L8": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "preference_construction|L9": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "semantics_query|L1": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "semantics_query|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "semantics_query|L11": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "semantics_query|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "semantics_query|L13": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "semantics_query|L14": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "semantics_query|L15": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "semantics_query|L2": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "semantics_query|L3": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "semantics_query|L4": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "semantics_query|L5": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "semantics_query|L6": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "semantics_query|L7": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "semantics_query|L8": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "semantics_query|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "status_query|L1": {
+   "n_scored": 8,
+   "success_rate": 0.75
+  },
+  "status_query|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "status_query|L11": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "status_query|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "status_query|L13": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "status_query|L14": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "status_query|L15": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "status_query|L2": {
+   "n_scored": 8,
+   "success_rate": 0.625
+  },
+  "status_query|L3": {
+   "n_scored": 8,
+   "success_rate": 0.625
+  },
+  "status_query|L4": {
+   "n_scored": 8,
+   "success_rate": 0.375
+  },
+  "status_query|L5": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  },
+  "status_query|L6": {
+   "n_scored": 8,
+   "success_rate": 0.25
+  },
+  "status_query|L7": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "status_query|L8": {
+   "n_scored": 8,
+   "success_rate": 0.0
+  },
+  "status_query|L9": {
+   "n_scored": 8,
+   "success_rate": 0.125
+  }
+ }
+}
