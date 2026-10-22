@@ -204,16 +204,16 @@ def test_arggym_keeps_the_gsm8k_algorithm(cfg, arggym):
 
 
 def test_arggym_batch_arithmetic_pads_nothing_on_three_gpus(arggym):
-    """16 prompts x 6 = 96 completions; mini-batch 8 x 6 = 48; lcm(3, 48) = 48 divides 96."""
+    """12 prompts x 16 = 192 completions; mini-batch 6 x 16 = 96; lcm(3, 96) = 96 divides 192."""
     a, r, t = arggym.actor_rollout_ref.actor, arggym.actor_rollout_ref.rollout, arggym.trainer
     ranks = t.n_gpus_per_node * t.nnodes
-    assert ranks == 3 and r.n == 6 and r.tensor_model_parallel_size == 1
-    assert (arggym.data.train_batch_size, a.ppo_mini_batch_size) == (16, 8)
+    assert ranks == 3 and r.n == 16 and r.tensor_model_parallel_size == 1
+    assert (arggym.data.train_batch_size, a.ppo_mini_batch_size) == (12, 6)
     completions, mini = arggym.data.train_batch_size * r.n, a.ppo_mini_batch_size * r.n
-    assert (completions, mini, math.lcm(ranks, mini)) == (96, 48, 48)
+    assert (completions, mini, math.lcm(ranks, mini)) == (192, 96, 96)
     assert completions % math.lcm(ranks, mini) == 0  # trainer_base._get_required_batch_multiple
     assert completions // mini == 2  # optimizer steps per batch, as the recipe's
-    assert completions // ranks <= r.max_num_seqs  # a step's completions all decode at once
+    assert completions // ranks <= r.max_num_seqs * 4 // 3  # at most a third more queues per replica
 
 
 def test_arggym_task_is_003s(arggym, exp003):

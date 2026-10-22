@@ -340,14 +340,14 @@ def test_curriculum_learns_each_step_before_the_next_draw(queue, arggym_cfg):
         metrics = {}
         trainer.step(metrics, {})
         assert (c.blocks, c.observed) == (k + 1, k + 1)
-        assert metrics["curriculum/groups"] == 16 and metrics["served/armed"] == 1.0
+        assert metrics["curriculum/groups"] == arggym_cfg.data.train_batch_size and metrics["served/armed"] == 1.0
         assert ("curriculum/pass_rate/attack/L1" in metrics) == (trainer.global_steps == 1)
         trainer.global_steps += 1
-    step = ["draw", ("generate", 16), "old", "ref", "learn", "adv", "update"]
+    step = ["draw", ("generate", arggym_cfg.data.train_batch_size), "old", "ref", "learn", "adv", "update"]
     assert [x if x[0] == "generate" or isinstance(x, str) else x[0] for x in trainer.calls] == step * 3
     assert [x[1] for x in trainer.calls if x[0] in ("draw", "learn")] == [0, 0, 1, 1, 2, 2]
     # The trained groups are the drawn ones, one per prompt.
-    assert [o["n"] for o in c.draws[2]["outcomes"]] == [6] * 16
+    assert [o["n"] for o in c.draws[2]["outcomes"]] == [arggym_cfg.actor_rollout_ref.rollout.n] * arggym_cfg.data.train_batch_size
 
 
 def test_without_curriculum_verls_sampler_stays(queue, arggym_cfg):

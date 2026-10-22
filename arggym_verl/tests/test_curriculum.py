@@ -22,8 +22,10 @@ def arggym():
     from conftest import ROOT
 
     with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        # The trace was written at 16 prompts a step; the mechanics do not depend on it.
         return compose(config_name="arggym-qwen3.5-4b",
-                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]",
+                                  "data.train_batch_size=16"])
 
 
 @pytest.fixture(scope="module")

@@ -350,15 +350,18 @@ values against 003's config (`tests/fixtures/exp003.json`):
 | Training rollouts | T 1.0, top_p 0.95, top_k 20, presence penalty 1.5, 40,960-token cap | 003 |
 | Dev | the same sampling (min_p 0, repetition penalty 1), 65,536-token cap, 2 samples a row | the eval config through `rl.config.dev_sampling`; 003 |
 | Schedule | 100 steps; dev at step 0 and every 10; a checkpoint every 10 | 003's step count |
-| Batch | 16 prompts x 6 = 96 completions; mini-batch 8 x 6 = 48 | below |
+| Batch | 12 prompts x 16 = 192 completions; mini-batch 6 x 16 = 96 | below |
 | Prompts | drawn by 003's curriculum: prior from the base eval, half-life 10 groups, floor 0.01 | 003's `curriculum:` block; section "Curriculum" |
 
-**Batch.** Six completions a prompt is the count nearest the recipe's 5 that
-three ranks divide: a mini-batch of M prompts is then 6M completions, a
-multiple of 3, so `lcm(3, 6M) = 6M`, which divides the batch's 12M. Sixteen
-prompts put 32 sequences on each vLLM replica, about half its KV cache at the
-lengths 003 measured (below), and keep a step near half an hour; 24 would fill
-three quarters of it and lengthen every step by about a quarter.
+**Batch.** Sixteen completions a prompt, as DAPO and Nemotron-Cascade 2 use. A
+group trains the model only when its outcomes differ, and a prompt solved with
+probability p gives such a group with probability 1 - p^n - (1 - p)^n: for
+p = 0.05 that is 26% at n = 6 and 56% at n = 16. With n = 16 a mini-batch of M
+prompts is 16M completions, so three ranks divide it when M is a multiple of 3:
+`lcm(3, 96) = 96` divides the batch's 192 at M = 6. Twelve prompts put 64
+sequences on each vLLM replica, of which `max_num_seqs` 48 decode at once and
+the rest queue, which keeps the KV cache within its ~1.5M tokens at the
+lengths 003 measured (below).
 
 **Each step on its own batch** (`num_warmup_batches: 0`). With a batch
 generated ahead, the completions still running when a step starts are aborted
@@ -467,7 +470,7 @@ Every ArgGYM run draws its training prompts with experiment 003's curriculum.
 The sampler is ArgGYM's own class, `rl.curriculum.Curriculum` at `a5b05fb`
 (vendored as `arggym_verl/vendor/rl_curriculum.py`); `arggym_verl/curriculum.py`
 builds it and drives it.
-Each step draws 16 prompts from the (task, level) cells in proportion to
+Each step draws 12 prompts from the (task, level) cells in proportion to
 p(1 - p) + 0.01, p being the cell's pass rate. p starts from the base model's
 eval (ArgGYM's `results/hf-qwen3.5-4b__xml_tags__cot/metrics.json`, shipped as
 `data/arggym-prior/hf-qwen3.5-4b__xml_tags__cot.json`, 8 samples a cell)

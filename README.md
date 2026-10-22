@@ -95,7 +95,7 @@ name); a run with the same `RUN` resumes from its latest checkpoint.
 | Config | Model | GPUs | Batch | Steps |
 |---|---|---|---|---|
 | `gsm8k-hard-qwen3-0.6b` | Qwen3-0.6B @ `c1899de` | 2 | 64 prompts x 5 completions, one batch generated ahead | 200 |
-| `arggym-qwen3.5-4b` | Qwen3.5-4B @ `851bf6e` | 3 | 16 prompts x 6 completions, each step on its own batch | 100 |
+| `arggym-qwen3.5-4b` | Qwen3.5-4B @ `851bf6e` | 3 | 12 prompts x 16 completions, each step on its own batch | 100 |
 
 Both use verl's LoRA recipe: rank 64, alpha 32, all linear layers, LR 3e-5
 constant, KL loss 0.001 against the base model, token-mean loss, clip 0.2,

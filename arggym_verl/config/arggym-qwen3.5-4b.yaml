@@ -27,12 +27,12 @@ data:
   # The dev cap, the eval config's 65,536 (evals/conf/model/hf-qwen3.5-4b.yaml).
   # Training rollouts stop at 40,960 through their agent loop (agent_loops-arggym.yaml).
   max_response_length: 65536
-  # 16 prompts x rollout.n 6 = 96 completions; mini-batch 8 x 6 = 48. verl pads a
-  # batch to a multiple of lcm(ranks, mini-batch completions)
-  # (trainer_base._get_required_batch_multiple): lcm(3, 48) = 48 divides 96, so
+  # 12 prompts x rollout.n 16 = 192 completions; mini-batch 6 x 16 = 96. verl pads
+  # a batch to a multiple of lcm(ranks, mini-batch completions)
+  # (trainer_base._get_required_batch_multiple): lcm(3, 96) = 96 divides 192, so
   # nothing is padded and each step takes two optimizer steps, as in the recipe.
-  train_batch_size: 16
-  # Each step's 16 prompts come from 003's curriculum (ArgGYM's rl.curriculum,
+  train_batch_size: 12
+  # Each step's 12 prompts come from 003's curriculum (ArgGYM's rl.curriculum,
   # vendored, through arggym_verl/curriculum.py): cells drawn in proportion to p(1 - p) + floor, p the
   # cell's pass rate, rows within a cell without replacement, seeded by data.seed.
   # The values are 003's `curriculum:` block.
@@ -65,7 +65,7 @@ actor_rollout_ref:
     exclude_modules: .*visual.*
   actor:
     # The recipe's mini-batch of half the batch.
-    ppo_mini_batch_size: 8
+    ppo_mini_batch_size: 6
     # One micro-batch holds the longest training sequence, prompt reserve plus the
     # 40,960 cap; dynamic batching packs shorter ones up to it.
     ppo_max_token_len_per_gpu: 49152
@@ -76,17 +76,18 @@ actor_rollout_ref:
       # FP32 base (18 GB) every 10 steps.
       save_lora_only: true
   rollout:
-    # Six completions a prompt: the recipe's 5 is not divisible by 3, and 6 keeps
-    # every mini-batch a multiple of the three ranks.
-    n: 6
+    # Sixteen completions a prompt, as DAPO and Nemotron-Cascade 2: a group carries
+    # signal only if its outcomes differ, which for a prompt solved with
+    # probability 0.05 happens in 56% of groups of 16 against 26% of groups of 6.
+    n: 16
     # 003's max_model_len: the 65,536 dev cap plus the 8,192 prompt reserve.
     max_model_len: 73728
     log_prob_max_token_len_per_gpu: 49152
     # vLLM's share of each 80 GB GPU while it generates; the trainer keeps its
     # FP32 shards resident (design.md, "ArgGYM run").
     gpu_memory_utilization: 0.8
-    # Sequences decoding at once per replica: a step's 96 completions are 32 per
-    # replica; dev's 192 are 64, of which 48 run and the rest queue, so long dev
+    # Sequences decoding at once per replica: a step's 192 completions, like dev's
+    # 192, are 64 per replica, of which 48 run and the rest queue, so long
     # completions do not outgrow the KV cache and get preempted.
     max_num_seqs: 48
     # As verl's Qwen3.5 recipes (hybrid Gated DeltaNet cache).
