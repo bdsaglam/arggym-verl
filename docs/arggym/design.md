@@ -3,7 +3,9 @@
 verl v0.9.1 (tag `v0.9.1`, `1876b06d`, 2026-09-20), the latest release on
 2026-10-20. Paths are in this repo: that tag plus `arggym_verl/` and two
 patches to verl itself (listed under "Patches to verl"). Where main
-(`ddf70072`, 2026-10-20) differs, it says so.
+(`ddf70072`, 2026-10-20) differs, it says so. Paths under `rl/` and `evals/`
+are in ArgGYM (https://github.com/ieddeveci/ArgGYM) at `a5b05fb`, the commit
+`arggym_verl/vendor/` is copied from (section "ArgGYM code").
 
 ## The three features, and where verl provides them
 
@@ -186,16 +188,14 @@ reference passes (`trainer_base.py:600,605,614`), so with the KL loss on it
 costs no extra forward pass. `arggym_verl/tests/test_trainer.py` runs it
 inside verl's own `_step_once` with KL on and off.
 
-When it arms depends on the shift per token and on the kernel gap, neither
-measured yet. With ~10^6 response tokens per step and a gap of ~0.08 nats
-(the blog value quoted below), it arms at a mean shift of ~1.6e-3 nats per
-token: an estimate, not a measurement.
+When it arms depends on the shift per token and on the kernel gap. It armed
+at step 3 on GSM8K and at step 2 on ArgGYM (section "Results").
 
 ## Precision, and the PPO ratio
 
-Phantom clipping (HF blog "Defeating the trainer-generator precision mismatch
-in TRL", as quoted to us; not read here) is what happens when vLLM's log-probs
-sit in the PPO ratio's denominator: the engine gap puts tokens outside the
+Phantom clipping (the term of the Hugging Face blog post "Defeating the
+trainer-generator precision mismatch in TRL") is what happens when vLLM's
+log-probs sit in the PPO ratio's denominator: the engine gap puts tokens outside the
 clip range at step 1, and those tokens get zero gradient. verl avoids it:
 
 - **Ratio.** `bypass_mode: false` (decoupled PPO). The trainer recomputes
@@ -280,7 +280,7 @@ repo root on the committed `uv.lock`. Custom pieces plug in through config:
 - the served-policy check and the curriculum through our entry point,
   `arggym_verl.main`, which mixes both into the V1 trainer.
 
-`scripts/arggym/setup.sh` syncs the lock (`torch 2.11.0+cu130`,
+`scripts/arggym/setup.sh` syncs the lock on Python 3.12 (`torch 2.11.0+cu130`,
 `vllm 0.24.0`, `transformers 5.9.0`, `peft 0.19.1`, `ray 2.55.1`), with two
 changes:
 
@@ -288,19 +288,48 @@ changes:
   wheelhouse index now serves a torch-2.13 build that fails to load
   (undefined symbol `c10::ValueError`). The script installs the wheelhouse's
   torch-2.11 build instead.
-- **Two additions:** `python-argumentation` (ArgGYM's scorer) and `trackio`.
+- **Additions** (`scripts/arggym/requirements.txt`): ArgGYM's library `arggym`
+  from git at `b04e12f` (not on PyPI), its engine `python-argumentation`, and
+  `trackio`. They are installed beside the lock rather than added to it, because
+  verl's lock resolves every backend at once and re-locking would move other pins.
 
-ArgGYM code is imported from `$ARGGYM_ROOT` on `PYTHONPATH`, not copied:
-`rl.gsm8k`, `rl.pool` (with `rl.pool.restrict`, branch `rl-003`), and
-`rl.reward`, which calls `evals.score.score_one`. `ARGGYM_ROOT` defaults to
-`.arggym`, a clone of the ArgGYM repository that `setup.sh` checks out at the
-commit in `scripts/arggym/arggym-rev` (`a5b05fb`, experiment 003's). A clone
-pinned by commit stays put when the main ArgGYM checkout changes branch or a
-worktree is cleaned up; a branch name or a worktree path would not. Each run
-records the commit. Two pieces of ArgGYM output are data, copied rather than
-imported: the GSM8K screen (`data/gsm8k-screen/`, from ArgGYM at `79d9fe2`) and
-003's pool (`data/arggym-pool/pools/0df63cbebe86/`, byte-identical to the one
-003's run reads; `train.jsonl` is gitignored for size).
+## ArgGYM code
+
+ArgGYM's library, `arggym`, generates and grades the tasks; it is a dependency.
+ArgGYM's training pipeline (`rl/`) and eval harness (`evals/`) are not part of
+the library, so the pieces this pipeline calls are copied into
+`arggym_verl/vendor/` from `a5b05fb`, under ArgGYM's MIT license
+(`arggym_verl/vendor/__init__.py` lists each module, its source, and what
+changed):
+
+- data: `rl.gsm8k` (the screened GSM8K rows and the `\boxed{}` check) and
+  `rl.pool` (building, freezing and loading 003's pool; `restrict`; the prompt
+  messages through `evals.prompt.compose`);
+- reward: `rl.reward.score` and `reward_of`, which call `evals.score.score_one`,
+  the scorer of every ArgGYM eval run;
+- the curriculum: `rl.curriculum.Curriculum`.
+
+Two inputs of `rl.pool` live in ArgGYM's data rather than its code and ship as
+small files: the eval tasksets' seed windows (`vendor/conf/taskset*.yaml`, for
+the overlap check) and the question and theory keys of their 7,200 rows
+(`vendor/conf/eval_keys.json.gz`), which `rl.pool` drops from the pool. The
+curriculum's prior, the base model's eval per cell, is
+`data/arggym-prior/hf-qwen3.5-4b__xml_tags__cot.json`.
+
+Built from the `arggym` library at `b04e12f` (identical to `a5b05fb` under
+`arggym/`), the vendored code writes 003's pool byte-for-byte as ArgGYM wrote
+it, and parquet files identical to the ones the runs below read. The parity
+tests hold that: `arggym_verl/tests/fixtures/` are outputs of ArgGYM's own code
+(prompts, scorer records on fixed completions, a 40-step curriculum trace,
+003's settings), written by `scripts/arggym/write_fixtures.py` with an ArgGYM
+checkout on the path. Moving to a newer ArgGYM means copying the modules again
+and rerunning that script.
+
+Where this could part from ArgGYM: a later ArgGYM commit that changes the
+scorer, the prompts or the eval tasksets does not reach this repository until
+the vendored code, the `arggym` pin and the fixtures move together. A pool built
+under other prompt or scoring versions is refused (`rl_pool.load_split`), so a
+library upgrade alone cannot silently reuse a stale pool.
 
 ## ArgGYM run
 
@@ -308,13 +337,14 @@ imported: the GSM8K screen (`data/gsm8k-screen/`, from ArgGYM at `79d9fe2`) and
 GSM8K config's (section "Hyperparameters"): LR 3e-5, LoRA r64/a32, KL
 `low_var_kl` 0.001, mini-batch half the batch, std normalization, no warmup,
 weight decay 0.01, token IS capped at 2. The task is ArgGYM's experiment 003
-(`rl/configs/qwen3.5-4b-003.yaml` at `a5b05fb`), and `test_config.py` reads
-each of these values from 003's own config:
+(`rl/configs/qwen3.5-4b-003.yaml` at `a5b05fb`; its data blocks are
+`arggym_verl/tasks/arggym-003.yaml`), and `test_config.py` checks each of these
+values against 003's config (`tests/fixtures/exp003.json`):
 
 | Setting | Value | Source |
 |---|---|---|
 | Rows | training: 5,700 rows of 57 (task, level) cells; dev: 96 rows, one per cell | 003's `train_cells` through `rl.pool.restrict`; 003's pool |
-| Reward | strict success, 1 or 0; a truncated completion pays 0 and stays in the loss | `rl.reward` at `a5b05fb` |
+| Reward | strict success, 1 or 0; a truncated completion pays 0 and stays in the loss | `rl.reward` at `a5b05fb`, vendored |
 | Model | Qwen3.5-4B, revision `851bf6e`, BF16 | 003 |
 | Prompts | `xml_tags`, `cot`, thinking on | 003 and the eval model config |
 | Training rollouts | T 1.0, top_p 0.95, top_k 20, presence penalty 1.5, 40,960-token cap | 003 |
@@ -414,26 +444,18 @@ should take ~30 minutes (25-40), a dev evaluation ~30 (192 completions of ~29k,
 the longest at 65,536), and the run of 100 steps with 11 evaluations ~2.5
 days. 003 on TRL takes ~49 minutes a step.
 
-**What only the GPU run settles.**
+The uniform-sampling run measured these (section "Results: ArgGYM"): the
+trainer peaked at 39.7 GB allocated against the ~45 estimated, and a step took
+26 minutes (median) against ~30.
 
-- That vLLM 0.24 applies the adapter to the packed Gated DeltaNet projections:
-  `served/armed`, then `served/track` near 1. Sampled log-probs include the
-  presence penalty and the top-k/top-p renormalization, which the trainer's do
-  not, so the check's noise is far above GSM8K's 0.02 nats and it may arm later.
-- Trainer and vLLM memory against the estimates above, and preemptions (vLLM's
-  log lines in `driver.log`).
-- verl's Qwen3.5 training path at 49,152-token micro-batches (fla kernels,
-  padding removal, LoRA on the Gated DeltaNet projections), which no CPU test
-  reaches.
-- Step 0: `val-core/arggym/acc/mean@2` near 0.328, 003's step 0 on the same rows
-  and sampling (its `dev/step_00000.jsonl`).
-- The importance weights: `rollout_corr/rollout_is_eff_sample_size` and the
-  clamped share, now that the sampled distribution is not the trainer's.
-- Step time, and the share of groups without signal (`arggym_verl.report`;
-  002, on all 96 cells, had 0.38-0.58).
-- That the trainer reads every completion's `extra_info` and
-  `reward_extra_info` from the real transfer queue: `curriculum/groups` 16
-  from step 1. The CPU test reads them from a stand-in queue.
+**Still to check on GPU.**
+
+- The curriculum on the real transfer queue: `curriculum/groups` 16 from
+  step 1. The CPU test reads `extra_info` and `reward_extra_info` from a
+  stand-in queue, and the uniform run had no curriculum.
+- Preemptions under long completions (vLLM's log lines in `driver.log`).
+- The share of groups without signal (`arggym_verl.report`; 003's predecessor,
+  on all 96 cells, had 0.38-0.58).
 
 The GSM8K smoke checklist applies with three changes: `served/tokens` is
 positive from step 2 (no batch ahead), `training/off_policy/*` staleness is 0,
@@ -442,11 +464,13 @@ and training metrics are comparable from step 1.
 ## Curriculum
 
 Every ArgGYM run draws its training prompts with experiment 003's curriculum.
-The sampler is ArgGYM's own class, `rl.curriculum.Curriculum` at `a5b05fb`,
-imported from `.arggym`; `arggym_verl/curriculum.py` builds it and drives it.
+The sampler is ArgGYM's own class, `rl.curriculum.Curriculum` at `a5b05fb`
+(vendored as `arggym_verl/vendor/rl_curriculum.py`); `arggym_verl/curriculum.py`
+builds it and drives it.
 Each step draws 16 prompts from the (task, level) cells in proportion to
 p(1 - p) + 0.01, p being the cell's pass rate. p starts from the base model's
-eval (`results/hf-qwen3.5-4b__xml_tags__cot/metrics.json`, 8 samples a cell)
+eval (ArgGYM's `results/hf-qwen3.5-4b__xml_tags__cot/metrics.json`, shipped as
+`data/arggym-prior/hf-qwen3.5-4b__xml_tags__cot.json`, 8 samples a cell)
 through a Beta(1, 1) prior, and every training group adds its successes out of
 its completions to its cell, after the cell's counts decay by 2^(-1/10). A
 pass is a success that did not truncate; a completion the scorer refused is
@@ -496,8 +520,7 @@ generation.
 inside its own state (`_BatchSamplerIterator.state_dict`), so the cell
 counts, the per-cell row orders and positions, and the random generator go into
 verl's `data.pt` with the rest. Checkpoints fall between steps, after the
-update and before the next draw, which is the state TRL's `state_for_step`
-returns for that step. A checkpoint of a run without the curriculum does not
+update and before the next draw. A checkpoint of a run without the curriculum does not
 load into one with it (its sampler state is the random sampler's).
 
 **Logged** (metrics file and trackio): every step `curriculum/mean_signal`,
@@ -513,15 +536,35 @@ no groups; it divides its loss by the tokens of completions with a nonzero
 advantage instead, which verl's `token-mean` does not do (section "Comparing
 with the TRL run").
 
-`arggym_verl/tests/test_curriculum.py` builds the TRL side with
-`rl.train.build_curriculum` on 003's config and rows and checks, for 40 steps
-of synthetic outcomes fed in a shuffled order, that both draw the same rows and
-hold the same counts; that a run resumed from `data.pt` draws and learns as the
+`arggym_verl/tests/test_curriculum.py` checks, for 40 steps of synthetic
+outcomes fed in a shuffled order, that it draws the same rows and holds the
+same counts as ArgGYM's `rl.train.build_curriculum` on 003's config and rows
+(`tests/fixtures/curriculum_trace.json`); that a run resumed from `data.pt` draws and learns as the
 uninterrupted one; and that the dataloader draws no block before the previous
 one's outcomes. `test_trainer.py` runs verl's own `step` (prompt fetch through
 `_fetch_one_gen_batch`, then `_step_once`) for three steps and checks the order
 draw, generate, old log-probs, reference, curriculum update, advantage, actor
 update.
+
+## Known gaps
+
+- `arggym_verl.report` picks the best checkpoint among steps that have a
+  checkpoint directory, so a dev score at a step without one is ignored. The
+  configs evaluate and save at the same interval.
+- Training truncation and groups without signal come only from the reward log,
+  which is written when `ARGGYM_VERL_REWARD_LOG` is set (`run.sh` sets it);
+  without it `report` prints an empty table. `report` has no test.
+- No test covers the GSM8K run's 8,192-token training cap across a resumed
+  completion. verl rewrites `max_tokens` on each attempt
+  (`verl/workers/rollout/llm_server.py:254-333`), so it holds by reading, not by
+  test. The ArgGYM run resumes nothing (no batch ahead).
+- `data.truncation: error`: a prompt longer than `data.max_prompt_length` stops
+  the run rather than being cut. No current prompt is close.
+- verl's `layered_summon` falls back to a full summon, with a warning, when the
+  layered gather returns nothing (`verl/utils/fsdp_utils.py:731-736`): peak
+  memory changes, results do not.
+- The venv is the lock plus `scripts/arggym/requirements.txt` and the
+  flash-attn wheel; `uv.lock` alone does not reproduce it.
 
 ## Results: GSM8K hard control
 
@@ -551,5 +594,31 @@ Precision, from step 3:
 Time: a step takes 212 s (median from step 3): generation 140, old log-probs 15,
 reference 12, update 45, weight sync 1.2. A dev evaluation takes 6-14 minutes.
 
-The ArgGYM config composes and passes verl's validation on CPU; it has not run
-on GPU.
+## Results: ArgGYM, uniform sampling
+
+Run `outputs/arggym-qwen3.5-4b-recipe`: `arggym-qwen3.5-4b.yaml` on three GPUs
+before the curriculum was added (verl at `53d9c420`): prompts drawn uniformly
+from the 57 training cells, everything else as configured here. In progress;
+read at step 41 of 100.
+
+Dev success (`val-core/arggym/acc/mean@2`, 96 rows x 2 samples, so one standard
+error is about 0.035):
+
+| Step | 0 | 10 | 20 | 30 | 40 |
+|---|---|---|---|---|---|
+| Dev | 0.286 | 0.328 | 0.406 | 0.396 | 0.484 |
+| Dev truncated | 0.047 | 0.036 | 0.005 | 0.005 | 0.010 |
+
+Step 0 sits 1.2 standard errors below 003's 0.328 on the same rows and sampling.
+
+- `served/armed` at step 2; `served/track` 0.71 at step 2, 0.88 at step 3, then
+  1.08-1.22. A track above 1 means vLLM's log-probs moved more than the
+  trainer's; the sampled distribution (presence penalty, top-k, top-p) differs
+  from the trainer's, which may account for it. Not investigated.
+- `served/logp_gap_mean` 0.07-0.09 nats, four times GSM8K's, as expected from
+  the same difference in distributions.
+- Importance weights: ESS 0.966-0.975. `actor/pg_clipfrac` ~1e-4.
+  `actor/kl_loss` 0.0002 at step 1, 0.015 at step 40.
+- Trainer peak 39.7 GB allocated. A step takes 23-39 minutes, median 26.
+
+The curriculum run (the configuration in this repository) has not run yet.
