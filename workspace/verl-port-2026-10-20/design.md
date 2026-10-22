@@ -256,8 +256,9 @@ hyperparameters:
    kept. `arggym_verl.report` picks the best by dev success and compares it
    with step 0.
 4. **ArgGYM only.**
-   - There is no curriculum: prompts are drawn uniformly from 003's 57
-     training cells.
+   - Both draw prompts with the same curriculum class and settings; TRL's
+     draws lag the outcomes by two steps, verl's by none (section
+     "Curriculum").
    - A completion the scorer refuses is `None` in TRL and pays 0 here, logged
      as `refused`. A truncated completion pays 0 and stays in the loss in both.
 
@@ -276,7 +277,8 @@ repo root on the committed `uv.lock`. Custom pieces plug in through config:
 - the reward manager by file path (`reward.reward_manager.source=importlib`,
   `docs/advance/reward_loop.rst`);
 - agent loops by `_target_` YAML (`rollout.agent.agent_loop_config_path`);
-- the served-policy check through our entry point, `arggym_verl.main`.
+- the served-policy check and the curriculum through our entry point,
+  `arggym_verl.main`, which mixes both into the V1 trainer.
 
 `scripts/arggym/setup.sh` syncs the lock (`torch 2.11.0+cu130`,
 `vllm 0.24.0`, `transformers 5.9.0`, `peft 0.19.1`, `ray 2.55.1`), with two
@@ -319,6 +321,7 @@ each of these values from 003's own config:
 | Dev | the same sampling (min_p 0, repetition penalty 1), 65,536-token cap, 2 samples a row | the eval config through `rl.config.dev_sampling`; 003 |
 | Schedule | 100 steps; dev at step 0 and every 10; a checkpoint every 10 | 003's step count |
 | Batch | 16 prompts x 6 = 96 completions; mini-batch 8 x 6 = 48 | below |
+| Prompts | drawn by 003's curriculum: prior from the base eval, half-life 10 groups, floor 0.01 | 003's `curriculum:` block; section "Curriculum" |
 
 **Batch.** Six completions a prompt is the count nearest the recipe's 5 that
 three ranks divide: a mini-batch of M prompts is then 6M completions, a
@@ -428,10 +431,97 @@ days. 003 on TRL takes ~49 minutes a step.
   clamped share, now that the sampled distribution is not the trainer's.
 - Step time, and the share of groups without signal (`arggym_verl.report`;
   002, on all 96 cells, had 0.38-0.58).
+- That the trainer reads every completion's `extra_info` and
+  `reward_extra_info` from the real transfer queue: `curriculum/groups` 16
+  from step 1. The CPU test reads them from a stand-in queue.
 
 The GSM8K smoke checklist applies with three changes: `served/tokens` is
 positive from step 2 (no batch ahead), `training/off_policy/*` staleness is 0,
 and training metrics are comparable from step 1.
+
+## Curriculum
+
+Every ArgGYM run draws its training prompts with experiment 003's curriculum.
+The sampler is ArgGYM's own class, `rl.curriculum.Curriculum` at `a5b05fb`,
+imported from `.arggym`; `arggym_verl/curriculum.py` builds it and drives it.
+Each step draws 16 prompts from the (task, level) cells in proportion to
+p(1 - p) + 0.01, p being the cell's pass rate. p starts from the base model's
+eval (`results/hf-qwen3.5-4b__xml_tags__cot/metrics.json`, 8 samples a cell)
+through a Beta(1, 1) prior, and every training group adds its successes out of
+its completions to its cell, after the cell's counts decay by 2^(-1/10). A
+pass is a success that did not truncate; a completion the scorer refused is
+left out (`rl.curriculum.group_outcomes`, applied to the reward's logged
+`acc`, `truncated` and `refused`). Rows within a cell come without replacement,
+reshuffled when used up. The seed is `data.seed` (0, as 003's).
+
+**Where it plugs in.** verl v0.9.1 has no option for the prompt sampler:
+`create_rl_sampler` (`verl/trainer/ppo/utils.py:140`) builds a random or
+sequential sampler and nothing else. `trainer.v1.sampler.custom_sampler`
+(`ppo_trainer.yaml:308-318`) replaces the replay buffer
+(`trainer_base._build_replay_buffer`, `docs/extend_guide.rst:103-108`), which
+picks among trajectories already generated, so it cannot choose prompts, and
+verl has no hook that feeds outcomes to a sampler. The trainer mixin
+`CurriculumFeedback` (`arggym_verl/trainer.py`) does both:
+
+- `_init_dataloader` rebuilds verl's training dataloader with the curriculum
+  as its sampler, with verl's batch size, collate function and `drop_last`.
+- `_compute_advantage` reads each completion's `extra_info` (task, level,
+  row index) and `reward_extra_info` from the transfer queue for the step's
+  batch, groups them by row in the order the block drew them, and calls
+  `Curriculum.update` before verl computes the advantages. It runs on the
+  driver once a step, after the rewards and before the update.
+
+**No lag.** In `colocate_async` verl fetches one prompt at a time
+(`gen_batch_size` 1, `trainer_base.py:741-753`), 16 a step, in `prepare_step`
+at the start of the step. The curriculum draws a block when the first prompt
+of the step is fetched, so block k+1 is drawn after block k's outcomes are
+in. TRL's dataloader drew two blocks ahead, so an outcome at step t first
+shaped block t+2 there. Two settings keep it so, and `curriculum.check_setup`
+refuses a run without them:
+
+- `data.dataloader_num_workers: 0`. verl's default of 8 worker processes makes
+  the dataloader pull indices ahead (two per worker), which draws the next
+  block during the current step.
+- `num_warmup_batches: 0`, no group filtering, no failed-group refill,
+  `parameter_sync_step` 1, and `sync` or `colocate_async`: each fetches
+  exactly one batch a step.
+
+The async replay buffer still refills a group whose rollout failed
+(`replay_buffer.py:580-583`), which would fetch a 17th prompt before the
+update. The curriculum then raises rather than draw the next block from
+estimates that miss the current step; TRL's run also stops on a failed
+generation.
+
+**Resuming.** torchdata's dataloader saves a sampler that has `state_dict`
+inside its own state (`_BatchSamplerIterator.state_dict`), so the cell
+counts, the per-cell row orders and positions, and the random generator go into
+verl's `data.pt` with the rest. Checkpoints fall between steps, after the
+update and before the next draw, which is the state TRL's `state_for_step`
+returns for that step. A checkpoint of a run without the curriculum does not
+load into one with it (its sampler state is the random sampler's).
+
+**Logged** (metrics file and trackio): every step `curriculum/mean_signal`,
+`mean_pass_rate`, `distinct_cells` (TRL's), `curriculum/level_share/L1..L8`
+(the step's prompts by level), `curriculum/groups`, and
+`curriculum/draw_entropy`, the entropy in nats of the distribution the next
+step draws from (uniform over 57 cells is 4.04); at step 1 and every 5 steps
+(`table_every`), `curriculum/pass_rate/<task>/L<level>` and
+`curriculum/draw_share/<task>/L<level>` for every cell.
+
+**Not ported:** `algorithm.filter_groups` (DAPO's dynamic sampling). 003 drops
+no groups; it divides its loss by the tokens of completions with a nonzero
+advantage instead, which verl's `token-mean` does not do (section "Comparing
+with the TRL run").
+
+`arggym_verl/tests/test_curriculum.py` builds the TRL side with
+`rl.train.build_curriculum` on 003's config and rows and checks, for 40 steps
+of synthetic outcomes fed in a shuffled order, that both draw the same rows and
+hold the same counts; that a run resumed from `data.pt` draws and learns as the
+uninterrupted one; and that the dataloader draws no block before the previous
+one's outcomes. `test_trainer.py` runs verl's own `step` (prompt fetch through
+`_fetch_one_gen_batch`, then `_step_once`) for three steps and checks the order
+draw, generate, old log-probs, reference, curriculum update, advantage, actor
+update.
 
 ## Results: GSM8K hard control
 

@@ -5,7 +5,8 @@ This branch (`arggym`) is upstream verl v0.9.1 (`1876b06d`) plus one package,
 trainer and token-in/token-out rollouts, and two small patches to verl (one
 makes vLLM refuse to serve the base model in place of the LoRA adapter). It is
 the second pipeline beside the TRL one in the ArgGYM repo (`rl/`): same data,
-reward code and model, with verl's own recipe for the algorithm
+reward code, model and, for ArgGYM, the same curriculum sampler, with verl's own
+recipe for the algorithm
 (`examples/tuning/lora/run_qwen3_8b_fsdp.sh`, LR from verl's LoRA guide).
 Upstream's README is `README.md`; the design, the hyperparameters and their
 sources are in `workspace/verl-port-2026-10-20/design.md`.
@@ -81,8 +82,9 @@ why not separate rollout GPUs).
 ```
 # GSM8K: 2 GPUs, 64 prompts x 5 completions a step, one batch generated ahead
 CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b
-# ArgGYM: 3 GPUs, 16 prompts x 6 completions a step, each step on its own batch
-CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b
+# ArgGYM: 3 GPUs, 16 prompts x 6 completions a step, each step on its own batch,
+# prompts drawn by experiment 003's curriculum
+RUN=arggym-qwen3.5-4b-curriculum CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b
 # smoke: 5 steps, dev at step 0 and at the last step
 RUN=smoke-gsm8k CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b \
     trainer.total_training_steps=5 trainer.resume_mode=disable
@@ -90,6 +92,13 @@ RUN=smoke-gsm8k CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh gsm8k-hard-qwen3-
 
 Both take two optimizer steps per batch (mini-batch half the batch), and both
 batch sizes divide so that verl pads nothing (design.md, "GPUs").
+
+The ArgGYM run draws each step's prompts from the (task, level) cells in
+proportion to p(1 - p) + 0.01, p the cell's pass rate, with ArgGYM's own
+`rl.curriculum` class and 003's settings (`data.curriculum`). It learns from
+each step's groups before the next step's prompts are drawn, and its state is
+saved in each checkpoint's `data.pt` (design.md, "Curriculum"). A run resumes
+only from checkpoints written with the curriculum, so give it its own `RUN`.
 
 `run.sh` calls `arggym_verl.main`, which is `verl.trainer.main_ppo` plus a
 per-step check that vLLM serves the trained adapter (`served/*` metrics). Once
@@ -122,7 +131,10 @@ reward), `actor/entropy`, `actor/kl_loss`, `actor/pg_clipfrac`,
 `rollout_is_mean`, `rollout_is_eff_sample_size`,
 `rollout_is_ratio_fraction_high`), `served/track` and `served/armed`,
 `training/off_policy/*` (staleness of the trained groups),
-`actor/perf/max_memory_allocated_gb`. The ArgGYM run also logs vLLM's own
+`actor/perf/max_memory_allocated_gb`. ArgGYM's curriculum: `curriculum/mean_signal`
+and `curriculum/draw_entropy` (4.04 nats is uniform over the 57 cells), the
+step's prompts by level (`curriculum/level_share/L*`), and every 5 steps each
+cell's pass rate and draw share (`curriculum/pass_rate/*`, `curriculum/draw_share/*`). The ArgGYM run also logs vLLM's own
 lines (running and waiting requests, KV cache usage) to `driver.log`.
 
 ## Tests (CPU)
@@ -142,6 +154,10 @@ count; that the GSM8K config carries the recipe's values (read from the recipe
 script), the LR from verl's LoRA guide, the rollout correction and the 8,192
 training cap; that the ArgGYM config keeps that algorithm and takes 003's
 model revision, thinking, caps, sampling and dev samples from 003's own config;
+that the curriculum draws the same rows and learns the same estimates as TRL's
+`rl.train.build_curriculum` on 003's config, step by step, that it learns each
+step's outcomes before the next draw in verl's own step order, and that it
+resumes from `data.pt`;
 that the adapter covers the 12 Linear kinds of Qwen3.5's text model and vLLM's
 Qwen3.5 has a LoRA layer for each; that the served-policy check runs inside
 verl's own step order with KL on and off and stops a base-served run; and that

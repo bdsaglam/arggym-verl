@@ -3,13 +3,12 @@
 # (rl/configs/qwen3.5-4b-003.yaml at a5b05fb, branch rl-003). Everything not set
 # here is the GSM8K config's.
 #
-# From 003: the 57 training cells, the 96-row dev split, the reward (a truncated
-# completion pays 0 and stays in the loss), the model revision, thinking on, the
-# 40,960-token training cap, card sampling with presence penalty 1.5 for training
-# and dev, 2 dev samples per row at a 65,536-token cap, 100 steps. Not from 003:
-# its curriculum sampler (prompts here are drawn uniformly from the 57 cells), its
-# algorithm (DAPO loss, LoRA r32, LR 2e-5, 8 x 8 a step) and its 20-step interval
-# for dev and checkpoints (10 here).
+# From 003: the 57 training cells, the curriculum that draws from them, the 96-row
+# dev split, the reward (a truncated completion pays 0 and stays in the loss), the
+# model revision, thinking on, the 40,960-token training cap, card sampling with
+# presence penalty 1.5 for training and dev, 2 dev samples per row at a
+# 65,536-token cap, 100 steps. Not from 003: its algorithm (DAPO loss, LoRA r32,
+# LR 2e-5, 8 x 8 a step) and its 20-step interval for dev and checkpoints (10 here).
 #
 # Memory, Qwen3.5 specifics and the step-time estimate: design.md, "ArgGYM run".
 
@@ -34,6 +33,25 @@ data:
   # (trainer_base._get_required_batch_multiple): lcm(3, 48) = 48 divides 96, so
   # nothing is padded and each step takes two optimizer steps, as in the recipe.
   train_batch_size: 16
+  # Each step's 16 prompts come from 003's curriculum (rl.curriculum, through
+  # arggym_verl/curriculum.py): cells drawn in proportion to p(1 - p) + floor, p the
+  # cell's pass rate, rows within a cell without replacement, seeded by data.seed.
+  # The values are 003's `curriculum:` block.
+  curriculum:
+    # Initial pass rates: the base model's eval, 8 samples a cell, read through a
+    # Beta(1, 1) prior. Relative to the ArgGYM checkout (rl.pool.ROOT).
+    prior: results/hf-qwen3.5-4b__xml_tags__cot/metrics.json
+    # An observation (one group) weighs half as much after this many later groups
+    # of the same cell.
+    half_life: 10
+    # Added to every cell's p(1 - p), at most 0.25, so saturated and impossible
+    # cells are still drawn now and then and their estimates can move.
+    floor: 0.01
+    # Every cell's pass rate and draw share to the metrics every this many steps.
+    table_every: 5
+  # The dataloader runs in the driver: worker processes would pull the next step's
+  # prompts from the curriculum before this step's outcomes reach it.
+  dataloader_num_workers: 0
 
 actor_rollout_ref:
   model:

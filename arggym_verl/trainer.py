@@ -1,8 +1,10 @@
-"""verl's V1 trainer, plus a check that vLLM serves the policy being trained.
+"""verl's V1 trainer, plus a check that vLLM serves the policy being trained and,
+with `data.curriculum`, ArgGYM's curriculum sampler.
 
 `install(mode)` replaces the trainer registered for `mode` by a subclass with
-`ServedPolicyCheck` mixed in; nothing else about the trainer changes, and the
-mode string stays verl's, so every branch verl takes on it is unchanged.
+`ServedPolicyCheck` and `CurriculumFeedback` mixed in; nothing else about the
+trainer changes, and the mode string stays verl's, so every branch verl takes on
+it is unchanged. Without `data.curriculum`, `CurriculumFeedback` does nothing.
 
 Every training step has, for each sampled token, three log-probs: vLLM's
 (`rollout_log_probs`), the trainer's with the adapter (`old_log_probs`), and the
@@ -104,13 +106,59 @@ class ServedPolicyCheck:
         return served_stats(*(data[f] for f in fields), is_threshold=is_threshold)
 
 
+class CurriculumFeedback:
+    """Draws training prompts with `arggym_verl.curriculum` and feeds it each step's outcomes.
+
+    The sampler replaces verl's in the training dataloader (`_init_dataloader`).
+    Each step's outcomes are read from the transfer queue in `_compute_advantage`,
+    which runs once a step on the driver, after the rewards and before the update;
+    the next step's prompts are fetched after it (`prepare_step`).
+    """
+
+    curriculum = None
+
+    def _init_dataloader(self):
+        super()._init_dataloader()
+        if not self.config.data.get("curriculum"):
+            return
+        from torchdata.stateful_dataloader import StatefulDataLoader
+
+        from arggym_verl import curriculum as cur
+
+        cur.check_setup(self.config, self.trainer_mode, self.parameter_sync_step)
+        self.curriculum = cur.build(self.config.data, self.train_dataset)
+        verls = self.train_dataloader
+        self.train_dataloader = StatefulDataLoader(
+            dataset=self.train_dataset, batch_size=verls.batch_size, num_workers=0,
+            drop_last=verls.drop_last, collate_fn=verls.collate_fn, sampler=self.curriculum)
+
+    def _compute_advantage(self, batch, metrics: dict):
+        if self.curriculum is not None:
+            self._feed_curriculum(batch, metrics)
+        return super()._compute_advantage(batch, metrics)
+
+    def _feed_curriculum(self, batch, metrics: dict) -> None:
+        import transfer_queue as tq
+
+        from arggym_verl import curriculum as cur
+
+        keys = [k for k, tag in zip(batch.keys, batch.tags) if not tag.get("is_padding", False)]
+        data = tq.kv_batch_get(keys=keys, partition_id=batch.partition_id,
+                               select_fields=["extra_info", "extra_fields"])
+        infos = data["extra_info"].tolist()
+        rewards = [f["reward_extra_info"] for f in data["extra_fields"].tolist()]
+        self.curriculum.update(cur.step_outcomes(self.curriculum, infos, rewards))
+        metrics.update(cur.metrics(self.curriculum, self.global_steps,
+                                   self.config.data.curriculum.table_every))
+
+
 def install(mode: str) -> type:
-    """Register `mode`'s trainer with the check mixed in; returns the new class."""
+    """Register `mode`'s trainer with both mixins; returns the new class."""
     from verl.trainer.ppo.v1 import trainer_base
 
     base = trainer_base.TRAINER_REGISTRY[mode]
     if issubclass(base, ServedPolicyCheck):
         return base
-    checked = type(f"Checked{base.__name__}", (ServedPolicyCheck, base), {})
+    checked = type(f"Checked{base.__name__}", (ServedPolicyCheck, CurriculumFeedback, base), {})
     trainer_base.TRAINER_REGISTRY[mode] = checked
     return checked
