@@ -145,11 +145,17 @@ class CurriculumFeedback:
         keys = [k for k, tag in zip(batch.keys, batch.tags) if not tag.get("is_padding", False)]
         data = tq.kv_batch_get(keys=keys, partition_id=batch.partition_id,
                                select_fields=["extra_info", "extra_fields"])
-        infos = data["extra_info"].tolist()
-        rewards = [f["reward_extra_info"] for f in data["extra_fields"].tolist()]
+        infos = _as_list(data["extra_info"])
+        rewards = [f["reward_extra_info"] for f in _as_list(data["extra_fields"])]
         self.curriculum.update(cur.step_outcomes(self.curriculum, infos, rewards))
         metrics.update(cur.metrics(self.curriculum, self.global_steps,
                                    self.config.data.curriculum.table_every))
+
+
+def _as_list(field) -> list:
+    """A non-tensor field from the queue: a NonTensorStack (`.tolist()`), or for a field
+    of dicts, a tensordict LinkedList, which is already a list."""
+    return field.tolist() if hasattr(field, "tolist") else list(field)
 
 
 def install(mode: str) -> type:

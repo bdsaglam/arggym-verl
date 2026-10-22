@@ -103,13 +103,18 @@ class FakeQueue:
         present = [f for f in select_fields if any(f in self.rows[k] for k in keys)]
         if any(f not in self.rows[k] for f in present for k in keys):
             raise ValueError("Some fields are not ready in all the requested keys!")
-        return Padded({f: torch.stack(v) if isinstance(v[0], torch.Tensor) else Listed(v)
+        return Padded({f: torch.stack(v) if isinstance(v[0], torch.Tensor)
+                       else LinkedList(v) if f == "extra_info" else Listed(v)
                        for f in present for v in [[self.rows[k][f] for k in keys]]})
 
 
 class Padded(dict):
     def to_padded_tensor(self):
         return self
+
+
+class LinkedList(list):
+    """`extra_info` as the queue returned it on GPU: tensordict's LinkedList, no `.tolist()`."""
 
 
 class Listed(list):
