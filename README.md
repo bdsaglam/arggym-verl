@@ -28,9 +28,12 @@ GSM8K hard control, Qwen3-0.6B, dev success over 200 rows x 4 samples
 | Dev | 0.610 | 0.609 | 0.644 | 0.645 | 0.670 | 0.663 | 0.666 | 0.696 | 0.689 | 0.700 | 0.733 |
 
 ArgGYM, Qwen3.5-4B, dev success over 96 rows x 2 samples
-(`val-core/arggym/acc/mean@2`; one standard error is about 0.035). This run drew
-its prompts uniformly from the 57 training cells; the curriculum run, the
-configuration in this repository, is pending. In progress at step 41 of 100:
+(`val-core/arggym/acc/mean@2`; one standard error is about 0.035), with an
+earlier recipe (LR 3e-5, the card's sampling in training) and prompts drawn
+uniformly from the 57 training cells, read at step 41 of 100. A run of the same
+recipe with the curriculum destabilised after step 58; the configuration in this
+repository is the recipe that answers it, and its run is pending
+(design.md, "Results: ArgGYM, curriculum").
 
 | Step | 0 | 10 | 20 | 30 | 40 |
 |---|---|---|---|---|---|
@@ -83,7 +86,8 @@ CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b
 
 On A100s a GSM8K step takes about 3.5 minutes and a dev evaluation 6 to 14
 (the reported run stopped at step 100 of the config's 200), and an ArgGYM step
-about 26 minutes and a dev evaluation 30 to 55; its 100 steps take about 2.5 days.
+about 40 to 50 minutes (estimated; longer in the first steps, where completions
+are longest) and a dev evaluation 1 to 2 hours; its 100 steps take about 3.5 days.
 Start runs in tmux or similar.
 
 `run.sh` takes a config name under `arggym_verl/config/` and any Hydra overrides
@@ -95,16 +99,24 @@ name); a run with the same `RUN` resumes from its latest checkpoint.
 | Config | Model | GPUs | Batch | Steps |
 |---|---|---|---|---|
 | `gsm8k-hard-qwen3-0.6b` | Qwen3-0.6B @ `c1899de` | 2 | 64 prompts x 5 completions, one batch generated ahead | 200 |
-| `arggym-qwen3.5-4b` | Qwen3.5-4B @ `851bf6e` | 3 | 12 prompts x 16 completions, each step on its own batch | 100 |
+| `arggym-qwen3.5-4b` | Qwen3.5-4B @ `851bf6e` | 3 | 18 prompts x 16 completions, each step on its own batch | 100 |
 
-Both use verl's LoRA recipe: rank 64, alpha 32, all linear layers, LR 3e-5
-constant, KL loss 0.001 against the base model, token-mean loss, clip 0.2,
-two optimizer steps per batch, truncated importance sampling capped at 2. Both
-evaluate dev at step 0 and every 10 steps and keep every 10-step checkpoint.
-The ArgGYM config inherits the GSM8K one and changes the task: data, sampling
-(the model card's, presence penalty 1.5), 40,960-token training and 65,536-token
-dev caps, the curriculum. The model paths point into the Hugging Face cache
-(`HF_HUB_CACHE`, which `run.sh` sets from your Hugging Face settings).
+Both use verl's LoRA recipe: rank 64, alpha 32, all linear layers, token-mean
+loss, clip 0.2, two optimizer steps per batch, truncated importance sampling
+capped at 2, and train on plain sampling (T 1, no top-p, top-k or penalty).
+
+- GSM8K keeps the recipe's KL loss (0.001 against the base model) with LR 3e-5
+  constant, and evaluates dev at step 0 and every 10 steps, keeping every
+  10-step checkpoint.
+- ArgGYM inherits the GSM8K config and sets LR 1e-5 with a 3-step warmup and
+  cosine decay to 1e-6, a KL to the base model that is logged with coefficient
+  0, a curriculum over the training cells, 40,960-token training and
+  65,536-token dev caps, dev with the model card's sampling (presence penalty
+  1.5) on 8 samples a row at step 0 and every 20 steps, a checkpoint every 5
+  steps, and the auto-stop (below).
+
+The model paths point into the Hugging Face cache (`HF_HUB_CACHE`, which
+`run.sh` sets from your Hugging Face settings).
 
 ### Other GPU counts
 
@@ -116,14 +128,14 @@ completions:
 
 - GSM8K: 320 completions, mini-batch 160. 2, 4, 5, 8 or 10 GPUs pad nothing;
   3 would pad to 480.
-- ArgGYM: 96 completions, mini-batch 48. 2, 3, 4, 6 or 8 GPUs pad nothing. One
+- ArgGYM: 288 completions, mini-batch 144. 2, 3, 4, 6, 8 or 9 GPUs pad nothing. One
   GPU does not fit: the unsharded FP32 trainer weights (18 GB) beside vLLM's 64 GB.
 
 For example, ArgGYM on 4 GPUs:
 `CUDA_VISIBLE_DEVICES=0,1,2,3 scripts/arggym/run.sh arggym-qwen3.5-4b trainer.n_gpus_per_node=4`.
 Changing the batch or `rollout.n` instead changes the experiment. With fewer GPUs
 each vLLM replica decodes more sequences at once; ArgGYM's `rollout.max_num_seqs`
-(48) caps that and queues the rest. `test_config.py` checks the arithmetic for the
+(72) caps that and queues the rest. `test_config.py` checks the arithmetic for the
 committed counts.
 
 ## Outputs and monitoring
@@ -145,15 +157,18 @@ After or during a run,
 
 writes `selection.json` (the checkpoint with the best dev success, the step-0
 score, and whether it beats it) and prints training success, truncation and the
-share of groups without signal per weight version.
+share of groups without signal per weight version. The trainer also rewrites
+`selection.json` after every dev evaluation, so during a run it names the best
+checkpoint as of the last dev score.
 
 What to read: `val-core/<task>/acc/mean@N` (dev success, the selection metric),
 `val-aux/<task>/truncated/mean@N`, `critic/score/mean` (training reward),
 `actor/entropy`, `actor/kl_loss`, `actor/pg_clipfrac`, `served/track` and
 `served/armed`, `served/logp_gap_*`, `rollout_corr/*` (importance weights),
 `training/off_policy/*` (staleness), `actor/perf/max_memory_allocated_gb`. For
-the curriculum: `curriculum/mean_signal`, `curriculum/draw_entropy` (4.04 nats
-is uniform over the 57 cells), `curriculum/level_share/L*`, and every 5 steps
+the curriculum: `curriculum/mean_signal`, `curriculum/zero_signal_share` (the
+step's groups whose 16 rewards are all equal), `curriculum/draw_entropy` (4.04
+nats is uniform over the 57 cells), `curriculum/level_share/L*`, and every 5 steps
 each cell's `curriculum/pass_rate/*` and `curriculum/draw_share/*`. On GSM8K,
 read training metrics from step 3: steps 1 and 2 split the first two batches by
 completion length (design.md, "Async"). design.md, "Smoke checklist", lists the
@@ -173,6 +188,12 @@ expected values.
   serves the adapter, about 0 for the base). Once the adapter has moved enough
   for the check to decide (`served/armed`), the run stops if `served/track`
   falls below 0.25.
+- **Auto-stop (ArgGYM).** After a step's checkpoint is saved, the run ends
+  cleanly if `actor/ppo_kl` was above 1e-3 for two consecutive steps, or, from
+  step 6, `rollout_corr/kl` is above twice its mean over steps 1-5. The driver
+  log then has a line starting `AUTO-STOP:` with the reason; the thresholds are
+  `trainer.auto_stop` in the config. design.md, "Checkpoint selection and
+  auto-stop".
 
 design.md, "The served model is the trained one" and "Precision, and the PPO
 ratio", has the derivation.
@@ -202,8 +223,9 @@ model's ArgGYM eval per cell; the file names its source.
 
 ```
 arggym_verl/            our package
-  main.py               entry point: verl's main_ppo plus the two trainer mixins
-  trainer.py            served-policy check, curriculum feedback (mixins on verl's trainer)
+  main.py               entry point: verl's main_ppo plus the trainer mixins
+  trainer.py            served-policy check, curriculum feedback, auto-stop, dev selection
+                        (mixins on verl's trainer)
   curriculum.py         ArgGYM's curriculum as verl's training sampler
   reward.py             reward manager: ArgGYM's scorers on the sampled token ids
   agent_loop.py         per-split sampling overrides on verl's single-turn agent loop

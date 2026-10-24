@@ -63,8 +63,7 @@ that. The block is the one `docs/algo/rollout_corr.md:170-182` documents.
 `verl/trainer/ppo/v1/trainer_base.py:1604-1621`). With mini-batch 32 x 5 = 160
 completions, two ranks need `lcm(2, 160) = 160`, which divides the 320 of a
 batch; three would pad 320 to `lcm(3, 160) = 480`. So the GSM8K control runs on
-two GPUs, and the ArgGYM run takes six completions a prompt to run on three
-(section "ArgGYM run").
+two GPUs, and the ArgGYM run sizes its batch for three (section "ArgGYM run").
 
 The step budget stays 200 steps: 12,800 prompts, about 9.7 passes over the
 1,322 training questions.
@@ -220,7 +219,7 @@ Dtypes:
 | Trainer forward/backward | BF16 compute, FP32 gradient reduce (FSDP2 `MixedPrecisionPolicy`, `transformer_impl.py:393-399,455`) | verl's default |
 | vLLM base weights | BF16 (`rollout.dtype`), the published checkpoint, loaded from safetensors | vendor precision |
 | vLLM adapter | vLLM LoRA dtype `auto`, BF16 (vLLM-side; not read in vLLM) | the factors are rounded on their own, not added into a weight, so no delta falls below a weight's ulp |
-| Sampled log-probs | `logprobs_mode: processed_logprobs` | GSM8K (T 1, top_p 1, no top-k): the raw log-probs. ArgGYM (top_p 0.95, top_k 20, presence penalty 1.5): the log-probs of the distribution sampled from, as TRL's server returns them; the IS weight then also covers the gap to the trainer's full distribution |
+| Sampled log-probs | `logprobs_mode: processed_logprobs` | the log-probs of the distribution sampled from, as TRL's server returns them. Both runs train on T 1, top_p 1, no top-k and no penalty, where these are the raw log-probs, so the IS weight covers the engine gap alone. With a filter or a penalty the sampled distribution would differ from the one the trainer computes, a gap the IS weight can reweight but not remove |
 
 ## Smoke checklist
 
@@ -252,9 +251,9 @@ hyperparameters:
 2. **Loss denominator.** TRL's DAPO loss divides by the tokens of completions
    with a nonzero advantage. verl's `token-mean` divides by all tokens of the
    mini-batch across ranks.
-3. **No checkpoint selection inside training.** Every 10-step checkpoint is
-   kept. `arggym_verl.report` picks the best by dev success and compares it
-   with step 0.
+3. **No checkpoint selection inside training.** Every checkpoint is kept
+   (every 10 steps on GSM8K, every 5 on ArgGYM). `arggym_verl.report` picks the
+   best by dev success and compares it with step 0.
 4. **ArgGYM only.**
    - Both draw prompts with the same curriculum class and settings; TRL's
      draws lag the outcomes by two steps, verl's by none (section
@@ -277,8 +276,9 @@ repo root on the committed `uv.lock`. Custom pieces plug in through config:
 - the reward manager by file path (`reward.reward_manager.source=importlib`,
   `docs/advance/reward_loop.rst`);
 - agent loops by `_target_` YAML (`rollout.agent.agent_loop_config_path`);
-- the served-policy check and the curriculum through our entry point,
-  `arggym_verl.main`, which mixes both into the V1 trainer.
+- the served-policy check, the curriculum, the auto-stop and the dev selection
+  through our entry point, `arggym_verl.main`, which mixes them into the V1
+  trainer.
 
 `scripts/arggym/setup.sh` syncs the lock on Python 3.12 (`torch 2.11.0+cu130`,
 `vllm 0.24.0`, `transformers 5.9.0`, `peft 0.19.1`, `ray 2.55.1`), with two
@@ -333,13 +333,13 @@ library upgrade alone cannot silently reuse a stale pool.
 
 ## ArgGYM run
 
-`arggym_verl/config/arggym-qwen3.5-4b.yaml`, three GPUs. The algorithm is the
-GSM8K config's (section "Hyperparameters"): LR 3e-5, LoRA r64/a32, KL
-`low_var_kl` 0.001, mini-batch half the batch, std normalization, no warmup,
-weight decay 0.01, token IS capped at 2. The task is ArgGYM's experiment 003
-(`rl/configs/qwen3.5-4b-003.yaml` at `a5b05fb`; its data blocks are
-`arggym_verl/tasks/arggym-003.yaml`), and `test_config.py` checks each of these
-values against 003's config (`tests/fixtures/exp003.json`):
+`arggym_verl/config/arggym-qwen3.5-4b.yaml`, three GPUs. The task is ArgGYM's
+experiment 003 (`rl/configs/qwen3.5-4b-003.yaml` at `a5b05fb`; its data blocks
+are `arggym_verl/tasks/arggym-003.yaml`), and `test_config.py` checks the values
+taken from it against 003's config (`tests/fixtures/exp003.json`). The algorithm
+keeps the GSM8K config's LoRA (r64/a32, all-linear), loss (`token-mean`, clip
+0.2), GRPO advantage with std normalization, weight decay 0.01 and token IS
+capped at 2, and sets the rest for long chain-of-thought RL:
 
 | Setting | Value | Source |
 |---|---|---|
@@ -347,34 +347,68 @@ values against 003's config (`tests/fixtures/exp003.json`):
 | Reward | strict success, 1 or 0; a truncated completion pays 0 and stays in the loss | `rl.reward` at `a5b05fb`, vendored |
 | Model | Qwen3.5-4B, revision `851bf6e`, BF16 | 003 |
 | Prompts | `xml_tags`, `cot`, thinking on | 003 and the eval model config |
-| Training rollouts | T 1.0, top_p 0.95, top_k 20, presence penalty 1.5, 40,960-token cap | 003 |
-| Dev | the same sampling (min_p 0, repetition penalty 1), 65,536-token cap, 2 samples a row | the eval config through `rl.config.dev_sampling`; 003 |
-| Schedule | 100 steps; dev at step 0 and every 10; a checkpoint every 10 | 003's step count |
-| Batch | 12 prompts x 16 = 192 completions; mini-batch 6 x 16 = 96 | below |
-| Prompts | drawn by 003's curriculum: prior from the base eval, half-life 10 groups, floor 0.01 | 003's `curriculum:` block; section "Curriculum" |
+| Optimizer | AdamW, LR 1e-5, 3-step linear warmup, cosine to 1e-6 at step 100 | below |
+| KL to the base model | computed and logged (`actor/kl_loss`), coefficient 0 | below |
+| Training rollouts | T 1.0, top_p 1.0, no top-k, no presence penalty, 40,960-token cap | below; the cap is 003's |
+| Dev | the card's sampling: T 1.0, top_p 0.95, top_k 20, presence penalty 1.5 (min_p 0, repetition penalty 1), 65,536-token cap, 8 samples a row | the eval config through `rl.config.dev_sampling`; 8 samples below |
+| Schedule | 100 steps; dev at step 0 and every 20; a checkpoint every 5; the auto-stop | 003's step count; below |
+| Batch | 18 prompts x 16 = 288 completions; mini-batch 9 x 16 = 144 | below |
+| Prompts | drawn by the curriculum: 003's prior and half-life 10 groups, weight max(0, p(1 - p) - 0.09) + 0.005 | section "Curriculum" |
+
+**LR.** Long chain-of-thought GRPO trains full weights at about 1e-6 to 2e-6
+(`examples/grpo_trainer/run_qwen3_4b_fsdp.sh` uses 1e-6), and verl's LoRA guide
+raises the LR by about ten times for LoRA (`docs/advance/ppo_lora.rst:164`):
+1e-5 to 2e-5. The run takes the low end, 1e-5, and decays it by cosine to 1e-6
+(`min_lr_ratio` 0.1) so the late steps, where a policy that has already moved
+is easiest to tip over, take the smallest updates. verl's scheduler steps once a
+training step, after its last mini-batch (`engine_workers.update_actor`), over
+`total_training_steps` (`trainer_base.py:781-798`). The warmup is 3 steps with
+`zero_indexed_step: false`, so steps 1-3 train at 1/3, 2/3 and all of 1e-5;
+verl's default zero-indexed count would give step 1 an LR of 0 and waste its
+rollouts. `test_config.py` steps verl's own scheduler through the 100 steps.
+
+**KL.** The KL loss's coefficient is 0: at LoRA's update size the earlier 0.001
+held nothing back (`actor/kl_loss` reached 0.17 at that coefficient while the
+run destabilised; section "Results: ArgGYM, curriculum"). `use_kl_loss` stays
+on, which keeps verl's reference pass (the adapter switched off) and the
+`actor/kl_loss` metric; the served-policy check reads the same pass. With the
+coefficient 0 the term adds `0 x kl_loss` to the loss, so the gradient does not
+depend on the reference (`verl/workers/utils/losses.py:132-142`; `test_config.py`
+runs verl's `ppo_loss` with two references and compares the gradients).
+Turning `use_kl_loss` off instead would drop `actor/kl_loss`, and the
+served-policy check would run the reference pass itself.
+
+**Training rollouts sample the policy.** T 1 with no top-p, top-k or presence
+penalty samples the distribution the trainer computes, so the PPO ratio and the
+token IS weight see only the engine gap. The card's filters and penalty make the
+sampled distribution differ from the trainer's on every token; the IS weight
+can reweight tokens but not account for the tokens the filters never let
+through. Dev keeps the card's sampling, so dev success stays comparable with
+ArgGYM's evals. `test_config.py` runs verl's own `generate_sequences` with each
+split's agent loop and checks what reaches vLLM.
 
 **Batch.** Sixteen completions a prompt, as DAPO and Nemotron-Cascade 2 use. A
 group trains the model only when its outcomes differ, and a prompt solved with
 probability p gives such a group with probability 1 - p^n - (1 - p)^n: for
 p = 0.05 that is 26% at n = 6 and 56% at n = 16. With n = 16 a mini-batch of M
 prompts is 16M completions, so three ranks divide it when M is a multiple of 3:
-`lcm(3, 96) = 96` divides the batch's 192 at M = 6. Twelve prompts put 64
-sequences on each vLLM replica, of which `max_num_seqs` 48 decode at once and
-the rest queue, which keeps the KV cache within its ~1.5M tokens at the
-lengths 003 measured (below).
+`lcm(3, 144) = 144` divides the batch's 288 at M = 9, two optimizer steps a
+step. Sixteen prompts would not: `lcm(3, 128) = 384` does not divide 256.
+Eighteen prompts put 96 sequences on each vLLM replica, of which `max_num_seqs`
+72 decode at once and the rest queue (below).
 
-**Each step on its own batch** (`num_warmup_batches: 0`). With a batch
-generated ahead, the completions still running when a step starts are aborted
-and resumed after the weight sync, and `verl/workers/rollout/llm_server.py:291-296` resumes one by
-sending prompt plus tokens so far as the new prompt. vLLM's presence penalty
-counts output tokens only (`vllm/model_executor/layers/utils.py`,
-`apply_penalties`), so a resumed completion would sample its remainder as if its
-first part had never been penalized. With completions of ~28k tokens most of a
-prefetched batch would resume. Without the batch ahead, each step's completions
-come from the weights that train on them: staleness 0, steps 1 and 2 unbiased,
-and the IS weight covers only the engine gap and the gap between the sampled
-(penalized, top-k, top-p) distribution and the trainer's full one. The step
-then waits for its longest completion, as 003's synchronous TRL run does.
+**Dev.** 96 rows x 8 samples. Two checkpoints are compared on the same rows, so
+what separates them is the sampling noise of the mean over 768 completions, at
+most sqrt(0.25 / 768) = 0.018; at 2 samples a row it was 0.036, as large as the
+gains being ranked. Dev runs at step 0 and every 20 steps; the best checkpoint
+is chosen by dev success alone (section "Checkpoint selection and auto-stop").
+
+**Each step on its own batch** (`num_warmup_batches: 0`). The curriculum draws
+a step's prompts after the previous step's outcomes are in, so no batch is
+generated ahead (`curriculum.check_setup` refuses one; section "Curriculum").
+Each step's completions come from the weights that train on them: staleness 0,
+steps 1 and 2 unbiased, and the IS weight covers only the engine gap. The step
+waits for its longest completion, as 003's synchronous TRL run does.
 
 **Qwen3.5.**
 
@@ -431,34 +465,28 @@ the GPU holds ~72 GB. A token's KV is 32 KiB (8 full-attention layers x K and
 V x 4 heads x 256 x 2 B) and a sequence's Gated DeltaNet state ~49 MiB (24
 layers x 32 heads x 128 x 128 x FP32), so the cache holds ~1.5M tokens. 003's
 server (60 GiB, ~1.9M tokens) held 52 running sequences at 67% usage, ~24k
-tokens each. A training step's 32 sequences a replica then need ~0.8M tokens;
-dev's 64 a replica would need ~1.5M, so `max_num_seqs: 48` runs 48 (~1.2M)
-and queues the rest rather than let vLLM preempt long completions.
+tokens each. The earlier recipe's mean completion was 30k tokens at step 1 and
+15-20k from step 15. `max_num_seqs: 72` runs 72 of a training step's 96
+sequences a replica (about 1.2-1.7M tokens at 16-24k each, the upper end above
+the cache) and queues the rest, and queues 184 of dev's 256. Above the cache
+vLLM preempts and recomputes the longest sequences; the GPU check measures it
+(README, "Outputs and monitoring").
 
-**Step time, estimated.** Training: on GSM8K the three passes (old log-prob,
-reference, update) ran at ~8,100 tokens/s per GPU on Qwen3-0.6B. Qwen3.5-4B has
-8x the non-embedding parameters (3.57B against 0.44B) and attends over ~30k
-tokens, so assume ~1/9 of that, ~900 tokens/s; a step's 96 x ~28k = 2.7M tokens
-are 0.9M a GPU, ~17 minutes. Generation is bound by the longest completion:
-003's server decoded each sequence at 25-55 tokens/s (3,000 tokens/s over 64
-sequences, 442 over 8), so a completion at the 40,960 cap takes 12-25 minutes,
-while the step's 2.6M tokens at 1.2-2k tokens/s a replica take ~10. A step
-should take ~30 minutes (25-40), a dev evaluation ~30 (192 completions of ~29k,
-the longest at 65,536), and the run of 100 steps with 11 evaluations ~2.5
-days. 003 on TRL takes ~49 minutes a step.
-
-The uniform-sampling run measured these (section "Results: ArgGYM"): the
-trainer peaked at 39.7 GB allocated against the ~45 estimated, and a step took
-26 minutes (median) against ~30.
+**Step time, estimated.** The earlier recipe, at 192 completions a step and
+19k tokens of mean completion (median over steps 10-57 of the curriculum run),
+took 34 minutes a step: generation 18, old log-probs 3.5, reference 3, update
+8.5. The three training passes scale with the step's tokens, x1.5 at 288
+completions: ~22 minutes. Generation scales by less, since a replica decodes 72
+sequences at once instead of 48 and the step still waits for its longest
+completion: 18-28 minutes. A step should take ~40-50 minutes at the same
+lengths, 1.2-1.5x the earlier one, and about 1.5 hours at step 1's 30k tokens.
+A dev evaluation is 768 completions, four times the earlier 192, which took 12-32
+minutes: ~1-2 hours each, six of them. The 100 steps take ~3.5 days.
 
 **Still to check on GPU.**
 
-- The curriculum on the real transfer queue: `curriculum/groups` 16 from
-  step 1. The CPU test reads `extra_info` and `reward_extra_info` from a
-  stand-in queue, and the uniform run had no curriculum.
-- Preemptions under long completions (vLLM's log lines in `driver.log`).
-- The share of groups without signal (`arggym_verl.report`; 003's predecessor,
-  on all 96 cells, had 0.38-0.58).
+- Preemptions at 72 sequences a replica in the long early steps.
+- The step time above.
 
 The GSM8K smoke checklist applies with three changes: `served/tokens` is
 positive from step 2 (no batch ahead), `training/off_policy/*` staleness is 0,
@@ -466,12 +494,13 @@ and training metrics are comparable from step 1.
 
 ## Curriculum
 
-Every ArgGYM run draws its training prompts with experiment 003's curriculum.
-The sampler is ArgGYM's own class, `rl.curriculum.Curriculum` at `a5b05fb`
-(vendored as `arggym_verl/vendor/rl_curriculum.py`); `arggym_verl/curriculum.py`
-builds it and drives it.
-Each step draws 12 prompts from the (task, level) cells in proportion to
-p(1 - p) + 0.01, p being the cell's pass rate. p starts from the base model's
+Every ArgGYM run draws its training prompts with experiment 003's curriculum,
+with a sharper weight. The sampler is ArgGYM's own class,
+`rl.curriculum.Curriculum` at `a5b05fb` (vendored as
+`arggym_verl/vendor/rl_curriculum.py`); `arggym_verl/curriculum.py` builds it,
+sets its weight (`StepCurriculum.weights`) and drives it.
+Each step draws 18 prompts from the (task, level) cells in proportion to
+max(0, p(1 - p) - 0.09) + 0.005, p being the cell's pass rate. p starts from the base model's
 eval (ArgGYM's `results/hf-qwen3.5-4b__xml_tags__cot/metrics.json`, shipped as
 `data/arggym-prior/hf-qwen3.5-4b__xml_tags__cot.json`, 8 samples a cell)
 through a Beta(1, 1) prior, and every training group adds its successes out of
@@ -480,6 +509,27 @@ pass is a success that did not truncate; a completion the scorer refused is
 left out (`rl.curriculum.group_outcomes`, applied to the reward's logged
 `acc`, `truncated` and `refused`). Rows within a cell come without replacement,
 reshuffled when used up. The seed is `data.seed` (0, as 003's).
+
+**The weight.** p(1 - p) is the variance of one completion's success, and so
+the expected signal of its group. 003's weight, p(1 - p) + 0.01, is nearly flat
+over the cells this run trains on: the earlier run drew from a distribution of
+4.00-4.03 nats against 4.04 for uniform over 57 cells. The margin 0.09 gives the
+floor alone to cells with p <= 0.1 or p >= 0.9, whose groups of 16 most often
+all pass or all fail, and widens the ratio between the most and least
+informative of the rest. The floor, 0.005, keeps every cell drawn now and then,
+so an estimate that has drifted to an extreme can come back: with the weights
+summing to about 7.5, an excluded cell gets 0.07% of the draws, about one prompt
+in 85 steps. `margin` and `floor` are
+in the config's `curriculum:` block; `margin: 0` is 003's weight.
+
+The weight sharpens the draw less than its form suggests, because few of these
+cells sit near 0 or 1. At step 0, from the prior, only 1 of the 57 cells is at
+p = 0.1 or 0.9 (0 or 8 passes of 8, read through Beta(1, 1)); the rest sit at
+p 0.2-0.8, where the weight varies from 0.075 to 0.165. The draw entropy is
+4.003 nats against 4.031 for 003's weight (`test_curriculum.py`). On the
+earlier run's estimates at steps 5-65 it would have been 3.93-3.97, against
+4.01-4.02 for 003's weight. The margin moves the draw away from extreme cells;
+it does not concentrate it on a few.
 
 **Where it plugs in.** verl v0.9.1 has no option for the prompt sampler:
 `create_rl_sampler` (`verl/trainer/ppo/utils.py:140`) builds a random or
@@ -499,7 +549,7 @@ verl has no hook that feeds outcomes to a sampler. The trainer mixin
   driver once a step, after the rewards and before the update.
 
 **No lag.** In `colocate_async` verl fetches one prompt at a time
-(`gen_batch_size` 1, `trainer_base.py:741-753`), 16 a step, in `prepare_step`
+(`gen_batch_size` 1, `trainer_base.py:741-753`), 18 a step, in `prepare_step`
 at the start of the step. The curriculum draws a block when the first prompt
 of the step is fetched, so block k+1 is drawn after block k's outcomes are
 in. TRL's dataloader drew two blocks ahead, so an outcome at step t first
@@ -514,7 +564,7 @@ refuses a run without them:
   exactly one batch a step.
 
 The async replay buffer still refills a group whose rollout failed
-(`replay_buffer.py:580-583`), which would fetch a 17th prompt before the
+(`replay_buffer.py:580-583`), which would fetch a 19th prompt before the
 update. The curriculum then raises rather than draw the next block from
 estimates that miss the current step; TRL's run also stops on a failed
 generation.
@@ -528,7 +578,9 @@ load into one with it (its sampler state is the random sampler's).
 
 **Logged** (metrics file and trackio): every step `curriculum/mean_signal`,
 `mean_pass_rate`, `distinct_cells` (TRL's), `curriculum/level_share/L1..L8`
-(the step's prompts by level), `curriculum/groups`, and
+(the step's prompts by level), `curriculum/groups`,
+`curriculum/zero_signal_share` (the share of the step's groups whose 16 rewards
+are all equal, so every advantage in them is 0), and
 `curriculum/draw_entropy`, the entropy in nats of the distribution the next
 step draws from (uniform over 57 cells is 4.04); at step 1 and every 5 steps
 (`table_every`), `curriculum/pass_rate/<task>/L<level>` and
@@ -539,7 +591,8 @@ no groups; it divides its loss by the tokens of completions with a nonzero
 advantage instead, which verl's `token-mean` does not do (section "Comparing
 with the TRL run").
 
-`arggym_verl/tests/test_curriculum.py` checks, for 40 steps of synthetic
+`arggym_verl/tests/test_curriculum.py` checks the weight on chosen pass rates
+and the step-0 entropy on the real prior, and, at 003's weight, for 40 steps of synthetic
 outcomes fed in a shuffled order, that it draws the same rows and holds the
 same counts as ArgGYM's `rl.train.build_curriculum` on 003's config and rows
 (`tests/fixtures/curriculum_trace.json`); that a run resumed from `data.pt` draws and learns as the
@@ -549,14 +602,55 @@ one's outcomes. `test_trainer.py` runs verl's own `step` (prompt fetch through
 draw, generate, old log-probs, reference, curriculum update, advantage, actor
 update.
 
+## Checkpoint selection and auto-stop
+
+**Selection.** The best checkpoint is the one with the highest dev success
+(`val-core/arggym/acc/mean@8`), among steps that have a checkpoint; the
+`selection.json` beside the run's outputs names it with the step-0 score and
+whether it beats it. verl saves a step's checkpoint before it evaluates dev, and
+logs the dev scores with the step's other metrics after both
+(`trainer_base.py:494-528`). The trainer mixin `DevSelection`
+(`arggym_verl/trainer.py`) rewrites `selection.json` right after each dev
+evaluation, with that evaluation's scores in hand, so the file never trails the
+last evaluation; `python -m arggym_verl.report` writes the same file from
+`metrics.jsonl` alone, and run during a dev evaluation it misses that step.
+
+**Auto-stop.** The trainer mixin `AutoStop` stops the run cleanly at the end of
+a step when either holds (`trainer.auto_stop` in the config):
+
+- `actor/ppo_kl` above 1e-3 for 2 consecutive steps (`ppo_kl_max`,
+  `ppo_kl_steps`). ppo_kl is the mean KL between the policy before and after
+  the step's updates on its own samples; the earlier run held it near 1e-4 and
+  passed 1e-3 at step 59, as entropy began to rise.
+- From step 6, `rollout_corr/kl` above 2x its mean over steps 1-5
+  (`rollout_kl_factor`, `baseline_steps`). This is vLLM's log-prob against the
+  trainer's on the sampled tokens; it held at 0.04-0.05 in the earlier run and
+  doubled by step 60.
+
+On the earlier run's metrics both rules first fire at step 60
+(`test_trainer.py`). The rule reads the step's metrics after its update. verl's
+`fit` saves the step's checkpoint and then calls `on_step_end`; there, if the
+rule fired, the mixin saves the step if it is off the 5-step grid, prints one
+line starting `AUTO-STOP:` with the reason to the driver log, and sets the
+step budget to the current step. The step then finishes as any other (dev if
+due, metrics, rollouts) and `fit`'s loop ends as when the budget is spent.
+`test_trainer.py` runs verl's own `fit` through such a stop. A resumed run
+rebuilds the rule's state from the metrics file. The auto-stop does not replace
+the served-policy check's hard stop, which raises before the update.
+
 ## Known gaps
 
 - `arggym_verl.report` picks the best checkpoint among steps that have a
-  checkpoint directory, so a dev score at a step without one is ignored. The
-  configs evaluate and save at the same interval.
-- Training truncation and groups without signal come only from the reward log,
-  which is written when `ARGGYM_VERL_REWARD_LOG` is set (`run.sh` sets it);
-  without it `report` prints an empty table. `report` has no test.
+  checkpoint directory, so a dev score at a step without one is ignored. Both
+  configs save at every step they evaluate dev.
+- `report`'s training table (truncation, groups without signal per weight
+  version) comes only from the reward log, which is written when
+  `ARGGYM_VERL_REWARD_LOG` is set (`run.sh` sets it); without it the table is
+  empty. The table has no test; the selection does.
+- The auto-stop and the trainer's `selection.json` read the metrics file
+  (`VERL_FILE_LOGGER_PATH`, which `run.sh` sets). Without it a resumed run's
+  auto-stop starts with no history (its `rollout_corr/kl` rule never arms) and
+  no `selection.json` is written during the run.
 - No test covers the GSM8K run's 8,192-token training cap across a resumed
   completion. verl rewrites `max_tokens` on each attempt
   (`verl/workers/rollout/llm_server.py:254-333`), so it holds by reading, not by
@@ -599,10 +693,11 @@ reference 12, update 45, weight sync 1.2. A dev evaluation takes 6-14 minutes.
 
 ## Results: ArgGYM, uniform sampling
 
-Run `outputs/arggym-qwen3.5-4b-recipe`: `arggym-qwen3.5-4b.yaml` on three GPUs
-before the curriculum was added (verl at `53d9c420`): prompts drawn uniformly
-from the 57 training cells, everything else as configured here. In progress;
-read at step 41 of 100.
+Run `outputs/arggym-qwen3.5-4b-recipe` on three GPUs (verl at `53d9c420`):
+prompts drawn uniformly from the 57 training cells, with the earlier recipe:
+LR 3e-5 constant, KL coefficient 0.001, the card's sampling for training
+(top_p 0.95, top_k 20, presence penalty 1.5), 12 x 16 completions a step, 2 dev
+samples a row. Read at step 41 of 100.
 
 Dev success (`val-core/arggym/acc/mean@2`, 96 rows x 2 samples, so one standard
 error is about 0.035):
@@ -624,4 +719,21 @@ Step 0 sits 1.2 standard errors below 003's 0.328 on the same rows and sampling.
   `actor/kl_loss` 0.0002 at step 1, 0.015 at step 40.
 - Trainer peak 39.7 GB allocated. A step takes 23-39 minutes, median 26.
 
-The curriculum run (the configuration in this repository) has not run yet.
+## Results: ArgGYM, curriculum
+
+Run `outputs/arggym-qwen3.5-4b-curriculum` (verl at `34ef5bec`): the uniform
+run's recipe with prompts drawn by 003's curriculum (p(1 - p) + 0.01). Stopped
+at step 69 of 100.
+
+| Step | 0 | 10 | 20 | 30 | 40 | 50 | 60 |
+|---|---|---|---|---|---|---|---|
+| Dev | 0.302 | 0.354 | 0.474 | 0.401 | 0.458 | 0.443 | 0.484 |
+
+Training was stable to step 58: entropy 0.56-0.74, `actor/kl_loss` rising
+slowly to 0.03, `actor/ppo_kl` within 2e-4 of 0 until step 49, `rollout_corr/kl`
+0.04-0.06. From step 59 the policy drifted: by step 68 entropy 1.5,
+`actor/kl_loss` 0.17, `actor/ppo_kl` up to 8e-3, `rollout_corr/kl` 0.20, mean
+completion length down from ~19k to ~10k, and completions ending in loops of a
+repeated word. The draw entropy stayed at 4.00-4.03 nats throughout, and 20% of
+groups on average had no signal. The configuration in this repository answers
+this run (section "ArgGYM run").
