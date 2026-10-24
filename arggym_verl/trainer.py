@@ -1,10 +1,14 @@
-"""verl's V1 trainer, plus a check that vLLM serves the policy being trained and,
-with `data.curriculum`, ArgGYM's curriculum sampler.
+"""verl's V1 trainer, plus a check that vLLM serves the policy being trained,
+with `data.curriculum` ArgGYM's curriculum sampler, with `trainer.auto_stop` a
+clean stop when the policy drifts, and a `selection.json` kept current after
+every dev evaluation.
 
 `install(mode)` replaces the trainer registered for `mode` by a subclass with
-`ServedPolicyCheck` and `CurriculumFeedback` mixed in; nothing else about the
-trainer changes, and the mode string stays verl's, so every branch verl takes on
-it is unchanged. Without `data.curriculum`, `CurriculumFeedback` does nothing.
+`ServedPolicyCheck`, `CurriculumFeedback`, `AutoStop` and `DevSelection` mixed in;
+nothing else about the trainer changes, and the mode string stays verl's, so every
+branch verl takes on it is unchanged. Without `data.curriculum`,
+`CurriculumFeedback` does nothing; without `trainer.auto_stop`, `AutoStop` does
+nothing.
 
 Every training step has, for each sampled token, three log-probs: vLLM's
 (`rollout_log_probs`), the trainer's with the adapter (`old_log_probs`), and the
@@ -30,8 +34,11 @@ truncation threshold.
 """
 from __future__ import annotations
 
+import json
 import math
-from typing import Dict
+import os
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional
 
 import torch
 
@@ -150,6 +157,132 @@ class CurriculumFeedback:
         self.curriculum.update(cur.step_outcomes(self.curriculum, infos, rewards))
         metrics.update(cur.metrics(self.curriculum, self.global_steps,
                                    self.config.data.curriculum.table_every))
+        metrics["curriculum/zero_signal_share"] = cur.zero_signal_share(infos, rewards)
+
+
+class StopRule:
+    """When the run should stop, from each step's metrics.
+
+    - `actor/ppo_kl` above `ppo_kl_max` for `ppo_kl_steps` consecutive steps: the
+      update moves the policy further each step than PPO's trust region assumes.
+    - `rollout_corr/kl`, vLLM's log-probs against the trainer's on the sampled
+      tokens, above `rollout_kl_factor` times its mean over steps
+      1..`baseline_steps`, checked from the step after: the policy has moved
+      where the two engines disagree more than they did at the start.
+
+    Steps 59-60 of the run that destabilised trip both (ppo_kl 1.15e-3, 1.80e-3;
+    rollout_corr/kl 0.087 against a step 1-5 mean of 0.043).
+    """
+
+    def __init__(self, ppo_kl_max: float, ppo_kl_steps: int, rollout_kl_factor: float,
+                 baseline_steps: int) -> None:
+        self.ppo_kl_max, self.ppo_kl_steps = ppo_kl_max, ppo_kl_steps
+        self.rollout_kl_factor, self.baseline_steps = rollout_kl_factor, baseline_steps
+        self.over = 0  # consecutive steps with ppo_kl above its bound
+        self.baseline: Dict[int, float] = {}  # step -> rollout_corr/kl, steps 1..baseline_steps
+
+    @classmethod
+    def from_config(cls, c) -> "StopRule":
+        return cls(float(c.ppo_kl_max), int(c.ppo_kl_steps), float(c.rollout_kl_factor),
+                   int(c.baseline_steps))
+
+    def observe(self, step: int, metrics: Dict[str, Any]) -> Optional[str]:
+        """Add step `step`'s metrics; the reason to stop after it, or None."""
+        reasons = []
+        kl = metrics.get("actor/ppo_kl")
+        if kl is not None:
+            self.over = self.over + 1 if kl > self.ppo_kl_max else 0
+            if self.over >= self.ppo_kl_steps:
+                reasons.append(f"actor/ppo_kl {kl:.2e} above {self.ppo_kl_max:.0e} for "
+                               f"{self.over} consecutive steps")
+        rk = metrics.get("rollout_corr/kl")
+        if rk is not None:
+            if step <= self.baseline_steps:
+                self.baseline[step] = rk
+            elif len(self.baseline) == self.baseline_steps:
+                ref = sum(self.baseline.values()) / len(self.baseline)
+                if ref > 0 and rk > self.rollout_kl_factor * ref:
+                    reasons.append(f"rollout_corr/kl {rk:.4f} above {self.rollout_kl_factor:g} x "
+                                   f"its step 1-{self.baseline_steps} mean {ref:.4f}")
+        return "; ".join(reasons) or None
+
+    def replay(self, records: Iterable[Dict[str, Any]], before: int) -> None:
+        """Rebuild the state from a resumed run's metrics file: each step below `before`,
+        its last record (a resumed run logs the steps after its checkpoint again)."""
+        last: Dict[int, Dict[str, Any]] = {}
+        for rec in records:
+            if 1 <= rec["step"] < before:
+                last.setdefault(rec["step"], {}).update(rec["data"])
+        for step in sorted(last):
+            self.observe(step, last[step])
+
+
+class AutoStop:
+    """Stops the run cleanly at the end of a step that trips `StopRule` (`trainer.auto_stop`).
+
+    The rule reads the step's metrics after its update (`step`). The stop happens in
+    `on_step_end`, which verl's `fit` calls after the step's checkpoint is saved; a
+    step off the `save_freq` grid is saved here first. The step then finishes as any
+    other (dev if due, metrics, rollouts) and `fit`'s loop ends, as when the step
+    budget is spent. The driver log gets one line starting `AUTO-STOP:`.
+    """
+
+    stop_rule: Optional[StopRule] = None
+    stop_reason: Optional[str] = None
+
+    def step(self, metrics: dict, timing_raw: dict):
+        batch = super().step(metrics, timing_raw)
+        c = self.config.trainer.get("auto_stop")
+        if c:
+            if self.stop_rule is None:
+                self.stop_rule = StopRule.from_config(c)
+                self.stop_rule.replay(_metrics_records(), before=self.global_steps)
+            self.stop_reason = self.stop_rule.observe(self.global_steps, metrics)
+        return batch
+
+    def on_step_end(self):
+        if self.stop_reason:
+            t = self.config.trainer
+            saved = t.save_freq > 0 and (self.global_steps >= self.total_training_steps
+                                         or self.global_steps % t.save_freq == 0)
+            if not saved:
+                self._save_checkpoint()
+            print(f"AUTO-STOP: step {self.global_steps}: {self.stop_reason}. Checkpoint "
+                  f"global_step_{self.global_steps} saved; the run ends after this step.", flush=True)
+            # fit's loop runs while global_steps <= total_training_steps; it increments
+            # global_steps after logging this step.
+            self.total_training_steps = self.global_steps
+        super().on_step_end()
+
+
+class DevSelection:
+    """Rewrites the run's `selection.json` (`arggym_verl.report`) after every dev evaluation.
+
+    verl saves a step's checkpoint before it evaluates dev and logs the dev scores
+    with the step's other metrics, after both. The file is written here, with the
+    evaluation's scores in hand, so it never trails the latest dev score.
+    """
+
+    def _validate(self, *args, **kwargs):
+        val = super()._validate(*args, **kwargs)
+        path = os.environ.get("VERL_FILE_LOGGER_PATH")
+        if val and path:
+            from arggym_verl import report
+
+            step = self.global_steps
+            records = [r for r in _metrics_records() if r["step"] <= step]
+            curve = report.dev_curve(records + [{"step": step, "data": val}])
+            selection = report.select(curve, Path(self.config.trainer.default_local_dir))
+            (Path(path).parent / "selection.json").write_text(json.dumps(selection, indent=2) + "\n")
+        return val
+
+
+def _metrics_records() -> List[Dict[str, Any]]:
+    """verl's file logger's records so far (`VERL_FILE_LOGGER_PATH`, set by run.sh)."""
+    path = os.environ.get("VERL_FILE_LOGGER_PATH")
+    if not path or not Path(path).exists():
+        return []
+    return [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
 
 
 def _as_list(field) -> list:
@@ -159,12 +292,13 @@ def _as_list(field) -> list:
 
 
 def install(mode: str) -> type:
-    """Register `mode`'s trainer with both mixins; returns the new class."""
+    """Register `mode`'s trainer with the mixins; returns the new class."""
     from verl.trainer.ppo.v1 import trainer_base
 
     base = trainer_base.TRAINER_REGISTRY[mode]
     if issubclass(base, ServedPolicyCheck):
         return base
-    checked = type(f"Checked{base.__name__}", (ServedPolicyCheck, CurriculumFeedback, base), {})
+    checked = type(f"Checked{base.__name__}",
+                   (ServedPolicyCheck, CurriculumFeedback, AutoStop, DevSelection, base), {})
     trainer_base.TRAINER_REGISTRY[mode] = checked
     return checked

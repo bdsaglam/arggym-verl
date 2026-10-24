@@ -3,9 +3,10 @@
 The TRL side is fixtures/curriculum_trace.json: ArgGYM's `rl.train.build_curriculum` on
 003's config and training rows, set to one block of 16 prompts a step with each prompt
 yielded once (verl's batch), fed 40 steps of `completions` below in its own order. The
-verl side is `arggym_verl.curriculum` on the training parquet and the ArgGYM config, fed
-the same completions in a shuffled order, as `_balance_batch` leaves them, in the
-reward's logged fields.
+verl side is `arggym_verl.curriculum` on the training parquet and the ArgGYM config at
+003's weight (margin 0, floor 0.01), fed the same completions in a shuffled order, as
+`_balance_batch` leaves them, in the reward's logged fields. The ArgGYM config's own
+weight, with a margin, is tested on its own below.
 """
 import json
 import random
@@ -15,17 +16,28 @@ import pytest
 import torch
 
 
-@pytest.fixture(scope="module")
-def arggym():
+def compose(*overrides):
     from hydra import compose, initialize_config_dir
 
     from conftest import ROOT
 
     with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
-        # The trace was written at 16 prompts a step; the mechanics do not depend on it.
         return compose(config_name="arggym-qwen3.5-4b",
-                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]",
-                                  "data.train_batch_size=16"])
+                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]", *overrides])
+
+
+@pytest.fixture(scope="module")
+def arggym():
+    """The config at the trace's settings: 16 prompts a step and 003's weight, p(1 - p) + 0.01.
+    The mechanics (draws, updates, resume) do not depend on either."""
+    return compose("data.train_batch_size=16", "data.curriculum.margin=0.0",
+                   "data.curriculum.floor=0.01")
+
+
+@pytest.fixture(scope="module")
+def configured():
+    """The ArgGYM config as committed."""
+    return compose()
 
 
 @pytest.fixture(scope="module")
@@ -83,14 +95,69 @@ def feed(curriculum, batch, shuffle_seed):
                                         [c["reward"] for c in batch]))
 
 
-def test_config_is_003s_curriculum(arggym):
+def test_config_is_003s_curriculum_with_a_margin(arggym, configured):
+    """003's prior, half-life, table interval and seed; the weight's margin 0.09 and floor 0.005
+    are the config's own. At margin 0 and floor 0.01 it is 003's block exactly."""
     from conftest import fixture
 
     exp003 = fixture("exp003.json")
     want = {**exp003["curriculum"], "prior": "data/arggym-prior/hf-qwen3.5-4b__xml_tags__cot.json"}
-    assert dict(arggym.data.curriculum) == want
-    assert arggym.data.seed == exp003["seed"] == 0
-    assert arggym.data.dataloader_num_workers == 0
+    assert dict(arggym.data.curriculum) == {**want, "margin": 0.0}
+    assert exp003["curriculum"]["floor"] == 0.01
+    assert dict(configured.data.curriculum) == {**want, "margin": 0.09, "floor": 0.005}
+    assert configured.data.seed == exp003["seed"] == 0
+    assert configured.data.dataloader_num_workers == 0
+
+
+def test_weight_is_p1mp_less_the_margin_plus_the_floor():
+    """max(0, p(1 - p) - margin) + floor; margin 0 is ArgGYM's p(1 - p) + floor."""
+    from arggym_verl.curriculum import StepCurriculum
+    from arggym_verl.vendor.rl_curriculum import Curriculum
+
+    # Beta(1, 1) pass rates 0.1, 0.5, 0.9, 0.95, 0.75 from (successes, scored).
+    prior = {("a", 1): (0, 8), ("a", 2): (4, 8), ("a", 3): (8, 8), ("a", 4): (18, 18), ("a", 5): (5, 6)}
+    cells = {c: [i] for i, c in enumerate(prior)}
+    args = dict(prompts_per_step=4, num_generations=1, steps_per_generation=1, seed=0)
+    sharp = StepCurriculum(cells, prior, floor=0.005, margin=0.09, **args)
+    p = {c: sharp.pass_rate(c) for c in cells}
+    assert [round(p[c], 3) for c in cells] == [0.1, 0.5, 0.9, 0.95, 0.75]
+    w = sharp.weights()
+    assert w[("a", 1)] == pytest.approx(0.005) and w[("a", 3)] == pytest.approx(0.005)
+    assert w[("a", 4)] == 0.005
+    assert w[("a", 2)] == pytest.approx(0.25 - 0.09 + 0.005)
+    assert w[("a", 5)] == pytest.approx(0.1875 - 0.09 + 0.005)
+    # The table (draw shares, entropy) reads the same weights.
+    assert sum(r["draw_share"] for r in sharp.table()) == pytest.approx(1)
+    plain = StepCurriculum(cells, prior, floor=0.01, **args)
+    assert plain.weights() == Curriculum(cells, prior, floor=0.01, **args).weights()
+
+
+def test_draw_entropy_at_step_0(configured, parquet):
+    """The configured weight on the base model's eval sharpens the first draw only a little:
+    4.003 nats against 4.031 for 003's weight and 4.043 for uniform over the 57 cells. Of
+    the 57 training cells only one starts at p <= 0.1 or p >= 0.9 (0 or 8 of 8 passes); the
+    rest sit at p 0.2-0.8, where p(1 - p) - 0.09 varies from 0.07 to 0.16."""
+    import math
+
+    from arggym_verl import curriculum as cur
+
+    sharp = ours(configured, parquet)
+    assert cur.draw_entropy(sharp) == pytest.approx(4.003, abs=1e-3)
+    old = cur.build(compose("data.curriculum.margin=0.0", "data.curriculum.floor=0.01").data,
+                    SimpleNamespace(dataframe=parquet))
+    assert cur.draw_entropy(old) == pytest.approx(4.031, abs=1e-3)
+    assert math.log(57) == pytest.approx(4.043, abs=1e-3)
+    excluded = [c for c in sharp.cells if sharp.weights()[c] == pytest.approx(sharp.floor)]
+    assert len(excluded) == 1
+
+
+def test_zero_signal_share():
+    """Groups (one row's completions) whose rewards are all equal: all passed or all failed."""
+    from arggym_verl.curriculum import zero_signal_share
+
+    infos = [{"id": r} for r in "aaaabbbbcccc"]
+    scores = [1, 1, 1, 1] + [0, 0, 0, 0] + [0, 1, 0, 0]
+    assert zero_signal_share(infos, [{"score": float(x)} for x in scores]) == pytest.approx(2 / 3)
 
 
 def test_cells_and_prior_are_trls(arggym, parquet, trace):

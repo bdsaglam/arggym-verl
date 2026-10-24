@@ -1,7 +1,9 @@
-"""The served-policy check: vLLM serving the adapter passes, vLLM serving the base fails.
+"""The trainer mixins: the served-policy check (vLLM serving the adapter passes, vLLM
+serving the base fails), the curriculum feed, the auto-stop and the dev selection.
 
-The step-order tests run verl's own `PPOTrainer._step_once` over stub passes
-that write to an in-memory transfer queue with the real one's field semantics.
+The step-order tests run verl's own `PPOTrainer._step_once`, `step` and `fit` over
+stub passes that write to an in-memory transfer queue with the real one's field
+semantics.
 """
 from types import SimpleNamespace
 
@@ -9,8 +11,8 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from arggym_verl.trainer import (TRACK_FAIL, CurriculumFeedback, ServedPolicyCheck, check_served,
-                                 install, served_stats)
+from arggym_verl.trainer import (TRACK_FAIL, AutoStop, CurriculumFeedback, DevSelection,
+                                 ServedPolicyCheck, StopRule, check_served, install, served_stats)
 
 
 def engines(serve_adapter: bool, shift: float = 0.02, noise: float = 0.08, n=(64, 512), seed=0):
@@ -80,7 +82,8 @@ def test_install_wraps_the_registered_mode():
 
     cls = install("colocate_async")
     assert get_trainer_cls("colocate_async") is cls
-    assert issubclass(cls, ServedPolicyCheck) and issubclass(cls, CurriculumFeedback)
+    for mixin in (ServedPolicyCheck, CurriculumFeedback, AutoStop, DevSelection):
+        assert issubclass(cls, mixin), mixin
     assert issubclass(cls, PPOTrainerColocateAsync)
     assert install("colocate_async") is cls
 
@@ -307,8 +310,9 @@ class StepStub(StubPasses):
         for uid, info in zip(list(batch["uid"]), infos, strict=True):
             for s in range(self.config.actor_rollout_ref.rollout.n):
                 key = f"{uid}_{s}_0"
+                acc = float((info["index"] + s) % 3 == 0)
                 self.queue.rows[key] = {"extra_info": info, "extra_fields": {"reward_extra_info": {
-                    "acc": float((info["index"] + s) % 3 == 0), "refused": 0.0, "truncated": 0.0}}}
+                    "score": acc, "acc": acc, "refused": 0.0, "truncated": 0.0}}}
                 keys.append(key)
         random.Random(len(self.calls)).shuffle(keys)
         self.submitted = keys
@@ -346,6 +350,7 @@ def test_curriculum_learns_each_step_before_the_next_draw(queue, arggym_cfg):
         trainer.step(metrics, {})
         assert (c.blocks, c.observed) == (k + 1, k + 1)
         assert metrics["curriculum/groups"] == arggym_cfg.data.train_batch_size and metrics["served/armed"] == 1.0
+        assert 0 <= metrics["curriculum/zero_signal_share"] <= 1
         assert ("curriculum/pass_rate/attack/L1" in metrics) == (trainer.global_steps == 1)
         trainer.global_steps += 1
     step = ["draw", ("generate", arggym_cfg.data.train_batch_size), "old", "ref", "learn", "adv", "update"]
@@ -363,3 +368,193 @@ def test_without_curriculum_verls_sampler_stays(queue, arggym_cfg):
     trainer = CurriculumChecked(queue, cfg, Rows())
     assert trainer.curriculum is None
     assert type(trainer.train_dataloader.sampler).__name__ == "RandomSampler"
+
+
+# ---------------------------------------------------------------- auto-stop
+
+
+def rule():
+    return StopRule(ppo_kl_max=1e-3, ppo_kl_steps=2, rollout_kl_factor=2.0, baseline_steps=5)
+
+
+def feed(r, seq):
+    """seq: (ppo_kl, rollout_corr/kl) per step from step 1; the steps whose reason is set."""
+    return {step: why for step, (pk, rk) in enumerate(seq, start=1)
+            if (why := r.observe(step, {"actor/ppo_kl": pk, "rollout_corr/kl": rk}))}
+
+
+def test_ppo_kl_stops_after_two_consecutive_steps_above():
+    seq = [(1e-4, 0.04)] * 5 + [(2e-3, 0.04), (5e-4, 0.04), (2e-3, 0.04), (-3e-3, 0.04),
+                                (1.1e-3, 0.04), (1.2e-3, 0.04)]
+    stops = feed(rule(), seq)
+    assert list(stops) == [11] and "actor/ppo_kl 1.20e-03 above 1e-03 for 2 consecutive" in stops[11]
+    assert feed(rule(), [(1e-3, 0.04)] * 8) == {}  # at the bound is not above it
+
+
+def test_rollout_kl_stops_above_twice_its_step_1_to_5_mean():
+    base = [(0.0, k) for k in (0.03, 0.05, 0.04, 0.035, 0.045)]  # mean 0.04
+    assert feed(rule(), base + [(0.0, 0.079), (0.0, 0.07)]) == {}
+    stops = feed(rule(), base + [(0.0, 0.079), (0.0, 0.081)])
+    assert list(stops) == [7] and "rollout_corr/kl 0.0810 above 2 x its step 1-5 mean 0.0400" in stops[7]
+    # Steps 1-5 set the baseline and never stop the run, however high.
+    assert feed(rule(), [(0.0, 0.04)] * 4 + [(0.0, 0.5), (0.0, 0.1)]) == {}
+
+
+def test_stops_where_the_destabilised_run_did():
+    """The last ArgGYM run (LR 3e-5, card sampling): (actor/ppo_kl, rollout_corr/kl) at steps
+    1-5 and 55-62. Both rules first fire at step 60, two steps after entropy began to climb."""
+    first = [(-1.78e-4, 0.04355), (-1.10e-4, 0.04329), (-1.50e-4, 0.04123), (-9.93e-5, 0.04102),
+             (-5.42e-5, 0.04582)]
+    late = {55: (7.05e-4, 0.0581), 56: (1.47e-4, 0.0585), 57: (7.38e-4, 0.0623),
+            58: (7.61e-4, 0.0606), 59: (1.15e-3, 0.0753), 60: (1.80e-3, 0.0869),
+            61: (-4.86e-4, 0.0896), 62: (2.18e-3, 0.0999)}
+    r = rule()
+    for step, (pk, rk) in enumerate(first, start=1):
+        assert r.observe(step, {"actor/ppo_kl": pk, "rollout_corr/kl": rk}) is None
+    stops = {s: r.observe(s, {"actor/ppo_kl": pk, "rollout_corr/kl": rk}) for s, (pk, rk) in late.items()}
+    assert min(s for s, why in stops.items() if why) == 60
+    assert "actor/ppo_kl" in stops[60] and "rollout_corr/kl" in stops[60]
+
+
+def test_replay_restores_the_state_of_a_resumed_run():
+    seq = [(1e-4, 0.04)] * 5 + [(1e-4, 0.05), (2e-3, 0.05)]
+    live = rule()
+    feed(live, seq)
+    records = [{"step": 0, "data": {"val-core/arggym/acc/mean@8": 0.3}}]
+    records += [{"step": s, "data": {"actor/ppo_kl": pk, "rollout_corr/kl": rk}}
+                for s, (pk, rk) in enumerate(seq, start=1)]
+    records += [{"step": 8, "data": {"actor/ppo_kl": 9.0, "rollout_corr/kl": 9.0}}]  # after the checkpoint
+    resumed = rule()
+    resumed.replay(records, before=8)
+    assert (resumed.over, resumed.baseline) == (live.over, live.baseline) == (1, {s: 0.04 for s in range(1, 6)})
+    assert "actor/ppo_kl" in resumed.observe(8, {"actor/ppo_kl": 2e-3, "rollout_corr/kl": 0.05})
+
+
+class FitStub:
+    """verl's `fit` loop with every worker call replaced; `step` returns the scripted metrics."""
+
+    from verl.trainer.ppo.v1.trainer_base import PPOTrainer
+    fit = PPOTrainer.fit
+
+    def __init__(self, script, total=10, save_freq=5, auto_stop=True):
+        trainer = {"project_name": "p", "experiment_name": "e", "logger": [], "val_before_train": False,
+                   "total_epochs": 1, "save_freq": save_freq, "test_freq": 0, "rollout_data_dir": None,
+                   "default_local_dir": "/nonexistent"}
+        if auto_stop:
+            trainer["auto_stop"] = {"ppo_kl_max": 1e-3, "ppo_kl_steps": 2, "rollout_kl_factor": 2.0,
+                                    "baseline_steps": 5}
+        self.config = OmegaConf.create({"trainer": trainer, "global_profiler": {"steps": None}})
+        self.script, self.global_steps, self.total_training_steps = script, 0, total
+        self.steps_per_epoch = total
+        self.saved, self.logged, self.synced, self.ended = [], [], [], False
+
+    def step(self, metrics, timing_raw):
+        pk, rk = self.script[self.global_steps - 1]
+        metrics.update({"actor/ppo_kl": pk, "rollout_corr/kl": rk})
+        return SimpleNamespace(keys=[], partition_id="train")
+
+    def _save_checkpoint(self):
+        self.saved.append(self.global_steps)
+
+    def _compute_metrics(self, batch, metrics, timing_raw, global_steps, epoch):
+        self.logged.append(global_steps)
+
+    def on_step_end(self):  # colocate_async: the weight sync
+        self.synced.append(self.global_steps)
+
+    def on_train_end(self):
+        self.ended = True
+
+    def _reissue_inflight_prompts(self):
+        pass
+
+    def _consume_sync_metrics(self):
+        return {}
+
+    def _shutdown_dump_executor(self):
+        pass
+
+    def __getattr__(self, name):  # on_step_begin, _start_profiling, ...: verl's no-op hooks
+        if name.startswith(("on_", "_start_", "_stop_")):
+            return lambda *a, **k: None
+        raise AttributeError(name)
+
+
+class StoppingFit(AutoStop, FitStub):
+    pass
+
+
+@pytest.fixture
+def quiet_fit(monkeypatch):
+    import transfer_queue
+    from verl.trainer.ppo.v1 import trainer_base
+
+    class Nothing:
+        def __init__(self, *a, **k):
+            pass
+
+        def log(self, *a, **k):
+            pass
+
+    for name in ("Tracking", "ValidationGenerationsLogger", "DapoFilteredRewardTableLogger"):
+        monkeypatch.setattr(trainer_base, name, Nothing)
+    monkeypatch.setattr(trainer_base, "SkipManager",
+                        SimpleNamespace(init=lambda config: None, set_step=lambda step: None))
+    monkeypatch.setattr(transfer_queue, "kv_clear", lambda **k: None)
+    monkeypatch.delenv("VERL_FILE_LOGGER_PATH", raising=False)
+
+
+@pytest.mark.parametrize("stop_at, saved", [(7, [5, 7]), (10, [5, 10])])
+def test_auto_stop_ends_verls_fit_after_the_step_and_its_checkpoint(quiet_fit, capsys, stop_at, saved):
+    """In verl's own `fit`, a tripped step is saved (off the save_freq grid too), logs its
+    metrics, prints AUTO-STOP and is the last step; on_train_end runs as at a normal end."""
+    script = [(1e-4, 0.04)] * 20
+    script[stop_at - 2] = script[stop_at - 1] = (2e-3, 0.04)
+    trainer = StoppingFit(script, total=20)
+    trainer.fit(agent_loop_manager=None)
+    assert trainer.logged == list(range(1, stop_at + 1))
+    assert trainer.saved == saved and trainer.ended
+    assert trainer.synced == trainer.logged
+    out = [line for line in capsys.readouterr().out.splitlines() if line.startswith("AUTO-STOP:")]
+    assert len(out) == 1 and f"step {stop_at}:" in out[0] and "actor/ppo_kl" in out[0]
+
+
+def test_without_auto_stop_the_run_goes_on(quiet_fit):
+    trainer = StoppingFit([(2e-3, 0.5)] * 6, total=6, auto_stop=False)
+    trainer.fit(agent_loop_manager=None)
+    assert trainer.logged == list(range(1, 7)) and trainer.saved == [5, 6]
+
+
+# ---------------------------------------------------------------- dev selection
+
+
+class ValidateStub:
+    def __init__(self, ckpt_root, step, val):
+        self.config = OmegaConf.create({"trainer": {"default_local_dir": str(ckpt_root)}})
+        self.global_steps, self.val = step, val
+
+    def _validate(self):
+        return dict(self.val)
+
+
+class Selecting(DevSelection, ValidateStub):
+    pass
+
+
+def test_selection_is_written_with_the_dev_scores_just_evaluated(tmp_path, monkeypatch):
+    """verl saved step 40's checkpoint and evaluated dev; its scores are not yet in
+    metrics.jsonl (verl logs them at the end of the step). selection.json names step 40."""
+    import json
+
+    key = "val-core/arggym/acc/mean@8"
+    metrics = tmp_path / "metrics.jsonl"
+    metrics.write_text("".join(json.dumps({"step": s, "data": {key: v}}) + "\n"
+                               for s, v in [(0, 0.29), (20, 0.41), (30, 0.40)]))
+    for s in (20, 40):
+        (tmp_path / "checkpoints" / f"global_step_{s}").mkdir(parents=True)
+    monkeypatch.setenv("VERL_FILE_LOGGER_PATH", str(metrics))
+    val = Selecting(tmp_path / "checkpoints", 40, {key: 0.48})._validate()
+    assert val == {key: 0.48}
+    sel = json.loads((tmp_path / "selection.json").read_text())
+    assert (sel["best_step"], sel["best_metric"], sel["base_metric"]) == (40, 0.48, 0.29)
+    assert sel["dev"] == {"0": 0.29, "20": 0.41, "30": 0.40, "40": 0.48}

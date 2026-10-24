@@ -1,16 +1,16 @@
-# ArgGYM on Qwen3.5-4B, three GPUs: the GSM8K control's algorithm (verl's LoRA
-# recipe, LR 3e-5, KL, token IS) on the task of ArgGYM's experiment 003
+# ArgGYM on Qwen3.5-4B, three GPUs: GRPO with the GSM8K control's LoRA (verl's
+# recipe, r64/a32) and token IS, on the task of ArgGYM's experiment 003
 # (rl/configs/qwen3.5-4b-003.yaml at a5b05fb, branch rl-003). Everything not set
 # here is the GSM8K config's.
 #
-# From 003: the 57 training cells, the curriculum that draws from them, the 96-row
-# dev split, the reward (a truncated completion pays 0 and stays in the loss), the
-# model revision, thinking on, the 40,960-token training cap, card sampling with
-# presence penalty 1.5 for training and dev, 2 dev samples per row at a
-# 65,536-token cap, 100 steps. Not from 003: its algorithm (DAPO loss, LoRA r32,
-# LR 2e-5, 8 x 8 a step) and its 20-step interval for dev and checkpoints (10 here).
-#
-# Memory, Qwen3.5 specifics and the step-time estimate: design.md, "ArgGYM run".
+# From 003: the 57 training cells and the curriculum's prior and half-life, the
+# 96-row dev split, the reward (a truncated completion pays 0 and stays in the
+# loss), the model revision, thinking on, the 40,960-token training cap, the
+# card's dev sampling (presence penalty 1.5) at a 65,536-token cap, 100 steps.
+# Set for long-CoT RL rather than taken from the GSM8K control: LR 1e-5 with
+# cosine decay, plain training sampling, a sharper curriculum weight, a KL term
+# that is logged but not trained on, 18 prompts x 16 a step, 8 dev samples a row,
+# and the auto-stop. design.md, "ArgGYM run", gives each value's reason.
 
 defaults:
   - gsm8k-hard-qwen3-0.6b
@@ -27,15 +27,15 @@ data:
   # The dev cap, the eval config's 65,536 (evals/conf/model/hf-qwen3.5-4b.yaml).
   # Training rollouts stop at 40,960 through their agent loop (agent_loops-arggym.yaml).
   max_response_length: 65536
-  # 12 prompts x rollout.n 16 = 192 completions; mini-batch 6 x 16 = 96. verl pads
+  # 18 prompts x rollout.n 16 = 288 completions; mini-batch 9 x 16 = 144. verl pads
   # a batch to a multiple of lcm(ranks, mini-batch completions)
-  # (trainer_base._get_required_batch_multiple): lcm(3, 96) = 96 divides 192, so
-  # nothing is padded and each step takes two optimizer steps, as in the recipe.
-  train_batch_size: 12
-  # Each step's 12 prompts come from 003's curriculum (ArgGYM's rl.curriculum,
-  # vendored, through arggym_verl/curriculum.py): cells drawn in proportion to p(1 - p) + floor, p the
-  # cell's pass rate, rows within a cell without replacement, seeded by data.seed.
-  # The values are 003's `curriculum:` block.
+  # (trainer_base._get_required_batch_multiple): lcm(3, 144) = 144 divides 288, so
+  # nothing is padded and each step takes two optimizer steps.
+  train_batch_size: 18
+  # Each step's 18 prompts come from the curriculum (ArgGYM's rl.curriculum,
+  # vendored, driven by arggym_verl/curriculum.py): cells drawn in proportion to
+  # max(0, p(1 - p) - margin) + floor, p the cell's pass rate, rows within a cell
+  # without replacement, seeded by data.seed. prior and half_life are 003's.
   curriculum:
     # Initial pass rates: the base model's eval, 8 samples a cell, read through a
     # Beta(1, 1) prior. Relative to the repository root; the file says its source.
@@ -43,9 +43,12 @@ data:
     # An observation (one group) weighs half as much after this many later groups
     # of the same cell.
     half_life: 10
-    # Added to every cell's p(1 - p), at most 0.25, so saturated and impossible
-    # cells are still drawn now and then and their estimates can move.
-    floor: 0.01
+    # Subtracted from p(1 - p) before the floor is added: cells with p <= 0.1 or
+    # p >= 0.9 get the floor alone.
+    margin: 0.09
+    # Added to every cell's weight, so cells the margin excludes are still drawn
+    # now and then and their estimates can move.
+    floor: 0.005
     # Every cell's pass rate and draw share to the metrics every this many steps.
     table_every: 5
   # The dataloader runs in the driver: worker processes would pull the next step's
@@ -64,8 +67,24 @@ actor_rollout_ref:
     path: ${oc.env:HF_HUB_CACHE}/models--Qwen--Qwen3.5-4B/snapshots/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
     exclude_modules: .*visual.*
   actor:
-    # The recipe's mini-batch of half the batch.
-    ppo_mini_batch_size: 6
+    optim:
+      # Long-CoT RL trains full weights at 1e-6 to 2e-6; LoRA at about ten times
+      # that (verl's LoRA guide, docs/advance/ppo_lora.rst:164). Cosine from 1e-5
+      # to 1e-6 over the run's steps (trainer_base sets total_training_steps), after
+      # a 3-step linear warmup. The scheduler steps once a training step, after
+      # its last mini-batch (engine_workers.update_actor). With zero_indexed_step
+      # false, step 1 trains at 1/3 of the peak rather than at 0.
+      lr: 1.0e-5
+      lr_scheduler_type: cosine
+      min_lr_ratio: 0.1
+      lr_warmup_steps: 3
+      zero_indexed_step: false
+    # The recipe's mini-batch of half the batch: two optimizer steps a step.
+    ppo_mini_batch_size: 9
+    # The KL to the base model is computed and logged (actor/kl_loss) but has no
+    # weight in the loss. use_kl_loss stays on (GSM8K config) so verl runs the
+    # reference pass that the served-policy check reads.
+    kl_loss_coef: 0.0
     # One micro-batch holds the longest training sequence, prompt reserve plus the
     # 40,960 cap; dynamic batching packs shorter ones up to it.
     ppo_max_token_len_per_gpu: 49152
@@ -73,7 +92,7 @@ actor_rollout_ref:
     entropy_from_logits_with_chunking: true
     checkpoint:
       # The adapter and its optimizer state only: a full checkpoint would carry the
-      # FP32 base (18 GB) every 10 steps.
+      # FP32 base (18 GB) every 5 steps.
       save_lora_only: true
   rollout:
     # Sixteen completions a prompt, as DAPO and Nemotron-Cascade 2: a group carries
@@ -86,10 +105,10 @@ actor_rollout_ref:
     # vLLM's share of each 80 GB GPU while it generates; the trainer keeps its
     # FP32 shards resident (design.md, "ArgGYM run").
     gpu_memory_utilization: 0.8
-    # Sequences decoding at once per replica: a step's 192 completions, like dev's
-    # 192, are 64 per replica, of which 48 run and the rest queue, so long
-    # completions do not outgrow the KV cache and get preempted.
-    max_num_seqs: 48
+    # Sequences decoding at once per replica: a step's 288 completions are 96 per
+    # replica, of which 72 run and the rest queue, so long completions do not
+    # outgrow the KV cache and get preempted.
+    max_num_seqs: 72
     # As verl's Qwen3.5 recipes (hybrid Gated DeltaNet cache).
     enable_prefix_caching: false
     # vLLM's periodic log lines: running and waiting requests, KV cache usage.
@@ -98,16 +117,20 @@ actor_rollout_ref:
       vllm:
         # As ArgGYM serves it: the vision tower is not loaded.
         language_model_only: true
-    # 003's training sampling, the card's; presence penalty 1.5 comes from the agent loop.
+    # Training rollouts sample the policy itself: T 1, no top-p or top-k, and no
+    # presence penalty (agent_loops-arggym.yaml), so the sampled distribution is
+    # the one the trainer computes and the token IS weight covers only the engine gap.
     temperature: 1.0
-    top_p: 0.95
-    top_k: 20
-    # Dev: the eval config's sampling, 2 samples per row as 003.
+    top_p: 1.0
+    top_k: -1
+    # Dev: the eval config's sampling, the card's (presence penalty 1.5 from the
+    # agent loop). 8 samples a row: one standard error of dev success is about
+    # 0.018 over 768 completions.
     val_kwargs:
       temperature: 1.0
       top_p: 0.95
       top_k: 20
-      n: 2
+      n: 8
     agent:
       agent_loop_config_path: ${oc.env:ARGGYM_VERL_ROOT}/arggym_verl/config/agent_loops-arggym.yaml
   ref:
@@ -116,15 +139,25 @@ actor_rollout_ref:
 trainer:
   v1:
     colocate_async:
-      # No batch generated ahead, so no completion is aborted and resumed. A
-      # resumed completion is sent back as prompt plus tokens so far, and vLLM's
-      # presence penalty counts output tokens only
-      # (vllm/model_executor/layers/utils.py, apply_penalties): the penalty would
-      # forget the first part of every resumed completion. Each step therefore
-      # trains on its own batch, sampled by the weights it trains.
+      # No batch generated ahead: the curriculum draws a step's prompts after the
+      # previous step's outcomes are in (curriculum.check_setup refuses a batch
+      # ahead). Each step trains on its own batch, sampled by the weights it trains.
       num_warmup_batches: 0
   n_gpus_per_node: 3
   total_training_steps: 100
-  test_freq: 10
-  save_freq: 10
-  experiment_name: arggym-qwen3.5-4b-lr3e-5-s0
+  # Dev at step 0 and every 20 steps; arggym_verl.report picks the best checkpoint
+  # by dev success alone.
+  test_freq: 20
+  # A checkpoint every 5 steps, so a run that stops itself or destabilises leaves
+  # one close to the last good step.
+  save_freq: 5
+  # arggym_verl.trainer.AutoStop: after a step's checkpoint is saved, stop the run
+  # if actor/ppo_kl was above ppo_kl_max for ppo_kl_steps consecutive steps, or,
+  # from step baseline_steps + 1, rollout_corr/kl is above rollout_kl_factor times
+  # its mean over steps 1..baseline_steps.
+  auto_stop:
+    ppo_kl_max: 1.0e-3
+    ppo_kl_steps: 2
+    rollout_kl_factor: 2.0
+    baseline_steps: 5
+  experiment_name: arggym-qwen3.5-4b-lr1e-5-cos-s0

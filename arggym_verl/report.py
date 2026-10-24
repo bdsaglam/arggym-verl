@@ -5,7 +5,9 @@
 Reads `metrics.jsonl` (verl's file logger) and `rewards/*.jsonl` (one line per
 scored completion, `arggym_verl.reward`). Writes `selection.json`: the
 checkpoint with the best dev success, beside the step-0 score and whether it
-beats it, as the TRL pipeline's `selection.json` does. Dev success is picked as
+beats it, as the TRL pipeline's `selection.json` does; the trainer writes the
+same file after every dev evaluation (`arggym_verl.trainer.DevSelection`), and
+this command, run during a dev evaluation, misses that step. Dev success is picked as
 the maximum of many evaluations; quote the selected checkpoint's eval-taskset
 score, not this one.
 

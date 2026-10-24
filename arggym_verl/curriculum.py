@@ -2,12 +2,17 @@
 
 The sampler is ArgGYM's own class, `Curriculum` (vendored as
 `arggym_verl.vendor.rl_curriculum`): each step's prompts are drawn from the (task, level)
-cells in proportion to p(1 - p) + floor, p being the cell's pass rate, started
-from the base model's eval through a Beta(1, 1) prior and updated from every
+cells in proportion to a weight of each cell's pass rate p (below). p starts
+from the base model's eval through a Beta(1, 1) prior and is updated from every
 training group with a half-life counted in groups of the cell; rows within a cell
-come without replacement. `data.curriculum` configures it as the `curriculum:`
-block of a TRL config does (prior, half_life, floor, table_every); the seed is
+come without replacement. `data.curriculum` configures it as the `curriculum:` block of a TRL
+config does (prior, half_life, floor, table_every), plus `margin`; the seed is
 `data.seed` and the prompts per step `data.train_batch_size`.
+
+The weight is max(0, p(1 - p) - margin) + floor. ArgGYM's is the case margin = 0,
+p(1 - p) + floor. A margin of 0.09 leaves cells with p <= 0.1 or p >= 0.9 the
+floor alone: they are drawn rarely, but still now and then, so their estimates
+can move back.
 
 Differences from TRL's use of the same class, all in how it is driven:
 
@@ -38,12 +43,24 @@ from arggym_verl.vendor.rl_curriculum import (Cell, Curriculum, base_pass_counts
 
 
 class StepCurriculum(Curriculum):
-    """TRL's `Curriculum`, refusing to draw before the previous block's outcomes are in.
+    """TRL's `Curriculum`, with a margin on the weight, refusing to draw before the
+    previous block's outcomes are in.
 
     verl asks for more prompts mid-step when it evicts a failed group and refills
     it (`ReplayBufferAsync.wait_for_sampleable`); that request would draw the next
     block from estimates that miss the current step.
     """
+
+    def __init__(self, *args, margin: float = 0.0, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.margin = margin
+
+    def weights(self) -> Dict[Cell, float]:
+        out = {}
+        for c in self.cells:
+            p = self.pass_rate(c)
+            out[c] = max(0.0, p * (1 - p) - self.margin) + self.floor
+        return out
 
     def draw(self) -> List[int]:
         if self.observed != self.blocks:
@@ -99,7 +116,7 @@ def build(data_config, dataset) -> StepCurriculum:
     return StepCurriculum(cells_of(dataset), base_pass_counts(str(ROOT / c.prior)),
                           prompts_per_step=data_config.train_batch_size, num_generations=1,
                           steps_per_generation=1, seed=data_config.seed,
-                          half_life=c.half_life, floor=c.floor)
+                          half_life=c.half_life, floor=c.floor, margin=c.get("margin", 0.0))
 
 
 def step_outcomes(curriculum: Curriculum, infos: Sequence[Dict[str, Any]],
@@ -126,6 +143,21 @@ def step_outcomes(curriculum: Curriculum, infos: Sequence[Dict[str, Any]],
     return group_outcomes([r for _, r in records])
 
 
+def zero_signal_share(infos: Sequence[Dict[str, Any]], rewards: Sequence[Dict[str, Any]]) -> float:
+    """The share of the step's groups whose completions were all paid the same reward:
+    all passed or all failed, so every advantage in the group is 0."""
+    groups: Dict[str, set] = {}
+    for info, rew in zip(infos, rewards, strict=True):
+        groups.setdefault(info["id"], set()).add(float(rew["score"]))
+    return sum(len(scores) < 2 for scores in groups.values()) / len(groups)
+
+
+def draw_entropy(curriculum: Curriculum) -> float:
+    """Entropy in nats of the distribution the next block's cells are drawn from."""
+    return -sum(r["draw_share"] * math.log(r["draw_share"]) for r in curriculum.table()
+                if r["draw_share"] > 0)
+
+
 def metrics(curriculum: Curriculum, step: int, table_every: int) -> Dict[str, float]:
     """The step's draw and, every `table_every` steps and at step 1, every cell's estimate.
 
@@ -139,7 +171,7 @@ def metrics(curriculum: Curriculum, step: int, table_every: int) -> Dict[str, fl
         out[f"curriculum/level_share/L{lv}"] = levels[lv] / len(draw["cells"])
     out["curriculum/groups"] = float(len(draw.get("outcomes", [])))
     rows = curriculum.table()
-    out["curriculum/draw_entropy"] = -sum(r["draw_share"] * math.log(r["draw_share"]) for r in rows)
+    out["curriculum/draw_entropy"] = draw_entropy(curriculum)
     if step % table_every == 0 or step == 1:
         for r in rows:
             cell = f"{r['task']}/L{r['level']}"

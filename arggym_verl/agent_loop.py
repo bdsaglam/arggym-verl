@@ -1,9 +1,9 @@
 """verl's single-turn agent loop with per-split sampling overrides.
 
 verl sets one response length for training and validation and has no presence
-penalty in its sampling config. The TRL runs need both: GSM8K trains at an
-8,192-token cap and evaluates dev at 32,768; Qwen3.5 samples with
-presence_penalty 1.5. Rows name their agent loop (`agent_name`), and each name
+penalty in its sampling config. The runs need both: GSM8K trains at an
+8,192-token cap and evaluates dev at 32,768; Qwen3.5's dev samples with the
+card's presence_penalty 1.5, its training rollouts with none. Rows name their agent loop (`agent_name`), and each name
 in `config/agent_loops-*.yaml` is this class with its own `sampling`, merged over
 what verl passes. Generation stays verl's token-in/token-out path:
 `SingleTurnAgentLoop` sends prompt ids and keeps the ids and log-probs vLLM

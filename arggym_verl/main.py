@@ -1,10 +1,11 @@
-"""verl's `main_ppo` entry point, with the trainer's served-policy check and curriculum installed.
+"""verl's `main_ppo` entry point, with the trainer mixins of `arggym_verl.trainer` installed.
 
     python -m arggym_verl.main --config-path=... --config-name=... [overrides]
 
 Identical to `python -m verl.trainer.main_ppo` except that the Ray task runner,
 before it builds the trainer, wraps the configured V1 trainer mode with
-`arggym_verl.trainer.ServedPolicyCheck` and `CurriculumFeedback`.
+`arggym_verl.trainer`'s `ServedPolicyCheck`, `CurriculumFeedback`, `AutoStop` and
+`DevSelection`.
 """
 from __future__ import annotations
 
