@@ -106,9 +106,10 @@ actor_rollout_ref:
     # FP32 shards resident (design.md, "ArgGYM run").
     gpu_memory_utilization: 0.8
     # Sequences decoding at once per replica: a step's 288 completions are 96 per
-    # replica, of which 72 run and the rest queue, so long completions do not
-    # outgrow the KV cache and get preempted.
-    max_num_seqs: 72
+    # replica, of which 48 run and the rest queue. vLLM's cache holds 1.73M tokens a
+    # replica; at 64 running, step-1 completions filled it with ~50 still running
+    # and vLLM preempted 13-23 a replica (design.md, "ArgGYM run").
+    max_num_seqs: 48
     # As verl's Qwen3.5 recipes (hybrid Gated DeltaNet cache).
     enable_prefix_caching: false
     # vLLM's periodic log lines: running and waiting requests, KV cache usage.

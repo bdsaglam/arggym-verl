@@ -397,7 +397,7 @@ prompts is 16M completions, so three ranks divide it when M is a multiple of 3:
 `lcm(3, 144) = 144` divides the batch's 288 at M = 9, two optimizer steps a
 step. Sixteen prompts would not: `lcm(3, 128) = 384` does not divide 256.
 Eighteen prompts put 96 sequences on each vLLM replica, of which `max_num_seqs`
-72 decode at once and the rest queue (below).
+48 decode at once and the rest queue (below).
 
 **Dev.** 96 rows x 8 samples. Two checkpoints are compared on the same rows, so
 what separates them is the sampling noise of the mean over 768 completions, at
@@ -465,30 +465,24 @@ weights 8.4 GB (4.21B x 2 B), the adapter 0.3 GB, activations and CUDA graphs
 ~4 GB, and ~51 GB for the cache. The trainer keeps its 6.8 GB of shards, so
 the GPU holds ~72 GB. A token's KV is 32 KiB (8 full-attention layers x K and
 V x 4 heads x 256 x 2 B) and a sequence's Gated DeltaNet state ~49 MiB (24
-layers x 32 heads x 128 x 128 x FP32), so the cache holds ~1.5M tokens. 003's
-server (60 GiB, ~1.9M tokens) held 52 running sequences at 67% usage, ~24k
-tokens each. The earlier recipe's mean completion was 30k tokens at step 1 and
-15-20k from step 15. `max_num_seqs: 72` runs 72 of a training step's 96
-sequences a replica (about 1.2-1.7M tokens at 16-24k each, the upper end above
-the cache) and queues the rest, and queues 184 of dev's 256. Above the cache
-vLLM preempts and recomputes the longest sequences; the GPU check measures it
-(README, "Outputs and monitoring").
+layers x 32 heads x 128 x 128 x FP32), so the cache holds ~1.5M tokens; vLLM
+reports 1,734,928 (`vllm:cache_config_info`, `kv_cache_size_tokens`). At step 1
+of this configuration on 12 x 16 completions (64 a replica, all running, mean
+completion 38k tokens), the cache was full by the time ~50 sequences were still
+running, and vLLM preempted 13-23 sequences a replica
+(`vllm:num_preemptions_total`). `max_num_seqs: 48` runs 48 of a training step's
+96 sequences a replica, about what the cache holds at those lengths, and queues
+the rest; dev queues 208 of its 256.
 
 **Step time, estimated.** The earlier recipe, at 192 completions a step and
 19k tokens of mean completion (median over steps 10-57 of the curriculum run),
 took 34 minutes a step: generation 18, old log-probs 3.5, reference 3, update
 8.5. The three training passes scale with the step's tokens, x1.5 at 288
-completions: ~22 minutes. Generation scales by less, since a replica decodes 72
-sequences at once instead of 48 and the step still waits for its longest
-completion: 18-28 minutes. A step should take ~40-50 minutes at the same
-lengths, 1.2-1.5x the earlier one, and about 1.5 hours at step 1's 30k tokens.
-A dev evaluation is 768 completions, four times the earlier 192, which took 12-32
-minutes: ~1-2 hours each, six of them. The 100 steps take ~3.5 days.
-
-**Still to check on GPU.**
-
-- Preemptions at 72 sequences a replica in the long early steps.
-- The step time above.
+completions: ~22 minutes. Generation runs at the same 48 sequences a replica
+on 1.5 times the tokens: ~27 minutes. A step should take ~50 minutes at the same
+lengths, 1.5x the earlier one, and about 1.7 hours at step 1's 30k tokens. A dev
+evaluation is 768 completions, four times the earlier 192, which took 12-32
+minutes: ~1-2 hours each, six of them. The 100 steps take ~4 days.
 
 The GSM8K smoke checklist applies with three changes: `served/tokens` is
 positive from step 2 (no batch ahead), `training/off_policy/*` staleness is 0,

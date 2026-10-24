@@ -281,9 +281,8 @@ def test_arggym_batch_arithmetic_pads_nothing_on_three_gpus(arggym):
     assert (completions, mini, math.lcm(ranks, mini)) == (288, 144, 144)
     assert completions % math.lcm(ranks, mini) == 0  # trainer_base._get_required_batch_multiple
     assert completions // mini == 2  # optimizer steps per batch, as the recipe's
-    # 96 a replica: 72 decode at once, at most a third more queue.
-    assert (completions // ranks, r.max_num_seqs) == (96, 72)
-    assert completions // ranks <= r.max_num_seqs * 4 // 3
+    # 96 a replica: 48 decode at once, the other half queue.
+    assert (completions // ranks, r.max_num_seqs) == (96, 48)
     # The old 16-prompt batch would pad: lcm(3, 8 x 16) = 384 does not divide 256.
     assert (16 * r.n) % math.lcm(ranks, 8 * r.n) != 0
 
@@ -385,7 +384,7 @@ def test_arggym_memory_layout(arggym):
     assert a.model.enable_gradient_checkpointing
     assert a.actor.entropy_from_logits_with_chunking
     assert not a.actor.fsdp_config.param_offload and not a.actor.fsdp_config.optimizer_offload
-    assert r.gpu_memory_utilization == 0.8
+    assert r.gpu_memory_utilization == 0.8 and r.max_num_seqs == 48
     assert r.free_cache_engine and not r.enable_prefix_caching
     assert r.engine_kwargs.vllm == {"language_model_only": True}
     assert a.actor.checkpoint.save_lora_only

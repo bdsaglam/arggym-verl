@@ -86,8 +86,8 @@ CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b
 
 On A100s a GSM8K step takes about 3.5 minutes and a dev evaluation 6 to 14
 (the reported run stopped at step 100 of the config's 200), and an ArgGYM step
-about 40 to 50 minutes (estimated; longer in the first steps, where completions
-are longest) and a dev evaluation 1 to 2 hours; its 100 steps take about 3.5 days.
+about 50 minutes (estimated; longer in the first steps, where completions are
+longest) and a dev evaluation 1 to 2 hours; its 100 steps take about 4 days.
 Start runs in tmux or similar.
 
 `run.sh` takes a config name under `arggym_verl/config/` and any Hydra overrides
@@ -135,7 +135,7 @@ For example, ArgGYM on 4 GPUs:
 `CUDA_VISIBLE_DEVICES=0,1,2,3 scripts/arggym/run.sh arggym-qwen3.5-4b trainer.n_gpus_per_node=4`.
 Changing the batch or `rollout.n` instead changes the experiment. With fewer GPUs
 each vLLM replica decodes more sequences at once; ArgGYM's `rollout.max_num_seqs`
-(72) caps that and queues the rest. `test_config.py` checks the arithmetic for the
+(48) caps that and queues the rest. `test_config.py` checks the arithmetic for the
 committed counts.
 
 ## Outputs and monitoring
