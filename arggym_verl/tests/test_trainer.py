@@ -436,10 +436,10 @@ class FitStub:
     from verl.trainer.ppo.v1.trainer_base import PPOTrainer
     fit = PPOTrainer.fit
 
-    def __init__(self, script, total=10, save_freq=5, auto_stop=True):
+    def __init__(self, script, run_dir, total=10, save_freq=5, auto_stop=True):
         trainer = {"project_name": "p", "experiment_name": "e", "logger": [], "val_before_train": False,
                    "total_epochs": 1, "save_freq": save_freq, "test_freq": 0, "rollout_data_dir": None,
-                   "default_local_dir": "/nonexistent"}
+                   "default_local_dir": str(run_dir / "checkpoints")}
         if auto_stop:
             trainer["auto_stop"] = {"ppo_kl_max": 1e-3, "ppo_kl_steps": 2, "rollout_kl_factor": 2.0,
                                     "baseline_steps": 5}
@@ -505,24 +505,63 @@ def quiet_fit(monkeypatch):
 
 
 @pytest.mark.parametrize("stop_at, saved", [(7, [5, 7]), (10, [5, 10])])
-def test_auto_stop_ends_verls_fit_after_the_step_and_its_checkpoint(quiet_fit, capsys, stop_at, saved):
+def test_auto_stop_ends_verls_fit_after_the_step_and_its_checkpoint(quiet_fit, capsys, tmp_path,
+                                                                    stop_at, saved):
     """In verl's own `fit`, a tripped step is saved (off the save_freq grid too), logs its
-    metrics, prints AUTO-STOP and is the last step; on_train_end runs as at a normal end."""
+    metrics, prints AUTO-STOP, leaves the AUTO-STOP file run.sh checks, and is the last step."""
     script = [(1e-4, 0.04)] * 20
     script[stop_at - 2] = script[stop_at - 1] = (2e-3, 0.04)
-    trainer = StoppingFit(script, total=20)
+    trainer = StoppingFit(script, tmp_path, total=20)
     trainer.fit(agent_loop_manager=None)
     assert trainer.logged == list(range(1, stop_at + 1))
     assert trainer.saved == saved and trainer.ended
     assert trainer.synced == trainer.logged
     out = [line for line in capsys.readouterr().out.splitlines() if line.startswith("AUTO-STOP:")]
     assert len(out) == 1 and f"step {stop_at}:" in out[0] and "actor/ppo_kl" in out[0]
+    assert (tmp_path / "AUTO-STOP").read_text().startswith(f"step {stop_at}:")
 
 
-def test_without_auto_stop_the_run_goes_on(quiet_fit):
-    trainer = StoppingFit([(2e-3, 0.5)] * 6, total=6, auto_stop=False)
+def test_without_auto_stop_the_run_goes_on(quiet_fit, tmp_path):
+    trainer = StoppingFit([(2e-3, 0.5)] * 6, tmp_path, total=6, auto_stop=False)
     trainer.fit(agent_loop_manager=None)
     assert trainer.logged == list(range(1, 7)) and trainer.saved == [5, 6]
+    assert not (tmp_path / "AUTO-STOP").exists()
+
+
+def test_a_resumed_run_reads_the_history_its_logger_truncated(tmp_path, monkeypatch):
+    """verl's FileLogger truncates metrics.jsonl at each launch; run.sh first renames the
+    earlier file to metrics.<time>.jsonl. The resumed run's rule replays both."""
+    import subprocess
+
+    from verl.utils.tracking import FileLogger
+
+    from arggym_verl.trainer import _metrics_records
+
+    from conftest import ROOT
+
+    path = tmp_path / "metrics.jsonl"
+    monkeypatch.setenv("VERL_FILE_LOGGER_PATH", str(path))
+    first = FileLogger("p", "e")
+    for s in range(1, 8):  # the first launch; its last checkpoint is step 5
+        first.log({"actor/ppo_kl": 2e-3 if s == 5 else 1e-4, "rollout_corr/kl": 0.04}, step=s)
+    first.finish()
+    # run.sh's rotation, as the script runs it (the AUTO-STOP check passes: no file).
+    script = (ROOT / "scripts/arggym/run.sh").read_text()
+    rotate = script[script.index("STAMP="):script.index("export ARGGYM_VERL_ROOT")]
+    subprocess.run(["bash", "-c", f'OUT="{tmp_path}"\n{rotate}'], check=True)
+    assert [p.name for p in tmp_path.glob("metrics*.jsonl")] != ["metrics.jsonl"]
+    second = FileLogger("p", "e")  # truncates metrics.jsonl
+    second.log({"actor/ppo_kl": 1e-4, "rollout_corr/kl": 0.05}, step=6)
+    second.finish()
+    r = rule()
+    r.replay(_metrics_records(), before=7)
+    assert r.baseline == {s: 0.04 for s in range(1, 6)}
+    assert r.over == 0  # step 6 as the resumed run logged it, not the first launch's
+    assert rule_after(r, 7) == "" and "actor/ppo_kl" in rule_after(r, 8)
+
+
+def rule_after(r, step):
+    return r.observe(step, {"actor/ppo_kl": 2e-3, "rollout_corr/kl": 0.05}) or ""
 
 
 # ---------------------------------------------------------------- dev selection

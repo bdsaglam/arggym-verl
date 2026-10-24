@@ -180,6 +180,7 @@ class StopRule:
         self.rollout_kl_factor, self.baseline_steps = rollout_kl_factor, baseline_steps
         self.over = 0  # consecutive steps with ppo_kl above its bound
         self.baseline: Dict[int, float] = {}  # step -> rollout_corr/kl, steps 1..baseline_steps
+        self.warned = False
 
     @classmethod
     def from_config(cls, c) -> "StopRule":
@@ -199,7 +200,13 @@ class StopRule:
         if rk is not None:
             if step <= self.baseline_steps:
                 self.baseline[step] = rk
-            elif len(self.baseline) == self.baseline_steps:
+            elif len(self.baseline) < self.baseline_steps:
+                if not self.warned:
+                    self.warned = True
+                    print(f"auto-stop: the rollout_corr/kl rule is off: steps "
+                          f"{sorted(self.baseline)} of 1-{self.baseline_steps} have the metric",
+                          flush=True)
+            else:
                 ref = sum(self.baseline.values()) / len(self.baseline)
                 if ref > 0 and rk > self.rollout_kl_factor * ref:
                     reasons.append(f"rollout_corr/kl {rk:.4f} above {self.rollout_kl_factor:g} x "
@@ -223,8 +230,10 @@ class AutoStop:
     The rule reads the step's metrics after its update (`step`). The stop happens in
     `on_step_end`, which verl's `fit` calls after the step's checkpoint is saved; a
     step off the `save_freq` grid is saved here first. The step then finishes as any
-    other (dev if due, metrics, rollouts) and `fit`'s loop ends, as when the step
-    budget is spent. The driver log gets one line starting `AUTO-STOP:`.
+    other (dev if on the `test_freq` grid, metrics, rollouts) and `fit`'s `while`
+    loop ends; `on_train_end` runs. The driver log gets one line starting
+    `AUTO-STOP:`, and the run directory a file `AUTO-STOP` with the reason, which
+    run.sh refuses to resume past.
     """
 
     stop_rule: Optional[StopRule] = None
@@ -247,8 +256,10 @@ class AutoStop:
                                          or self.global_steps % t.save_freq == 0)
             if not saved:
                 self._save_checkpoint()
-            print(f"AUTO-STOP: step {self.global_steps}: {self.stop_reason}. Checkpoint "
-                  f"global_step_{self.global_steps} saved; the run ends after this step.", flush=True)
+            line = (f"step {self.global_steps}: {self.stop_reason}. Checkpoint "
+                    f"global_step_{self.global_steps} saved; the run ends after this step.")
+            print(f"AUTO-STOP: {line}", flush=True)
+            (Path(t.default_local_dir).parent / "AUTO-STOP").write_text(line + "\n")
             # fit's loop runs while global_steps <= total_training_steps; it increments
             # global_steps after logging this step.
             self.total_training_steps = self.global_steps
@@ -278,11 +289,15 @@ class DevSelection:
 
 
 def _metrics_records() -> List[Dict[str, Any]]:
-    """verl's file logger's records so far (`VERL_FILE_LOGGER_PATH`, set by run.sh)."""
+    """The run's metrics records so far, oldest first: verl's file logger
+    (`VERL_FILE_LOGGER_PATH`, set by run.sh) truncates its file at each launch, and run.sh
+    keeps the earlier launches' files beside it (`arggym_verl.report.metrics_files`)."""
+    from arggym_verl import report
+
     path = os.environ.get("VERL_FILE_LOGGER_PATH")
-    if not path or not Path(path).exists():
+    if not path:
         return []
-    return [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+    return report.read_jsonl(report.metrics_files(Path(path).parent))
 
 
 def _as_list(field) -> list:

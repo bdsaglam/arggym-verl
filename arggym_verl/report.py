@@ -2,7 +2,8 @@
 
     python -m arggym_verl.report outputs/<run>
 
-Reads `metrics.jsonl` (verl's file logger) and `rewards/*.jsonl` (one line per
+Reads `metrics.jsonl` (verl's file logger), with the `metrics.<time>.jsonl` that
+`run.sh` keeps from earlier launches of a resumed run, and `rewards/*.jsonl` (one line per
 scored completion, `arggym_verl.reward`). Writes `selection.json`: the
 checkpoint with the best dev success, beside the step-0 score and whether it
 beats it, as the TRL pipeline's `selection.json` does; the trainer writes the
@@ -29,6 +30,14 @@ def read_jsonl(paths: Iterable[Path]) -> List[Dict[str, Any]]:
     for p in paths:
         out.extend(json.loads(line) for line in p.read_text().splitlines() if line.strip())
     return out
+
+
+def metrics_files(run_dir: Path) -> List[Path]:
+    """A run's metrics files in the order written: earlier launches (`run.sh` renames each
+    to `metrics.<UTC time>.jsonl`), then the current `metrics.jsonl`. Read in this order,
+    a step's last record is its latest."""
+    current = run_dir / "metrics.jsonl"
+    return sorted(run_dir.glob("metrics.*.jsonl")) + ([current] if current.exists() else [])
 
 
 def dev_curve(metrics: List[Dict[str, Any]]) -> Dict[int, Dict[str, float]]:
@@ -82,7 +91,7 @@ def main(argv=None) -> int:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("run_dir", type=Path)
     a = p.parse_args(argv)
-    metrics = read_jsonl([a.run_dir / "metrics.jsonl"])
+    metrics = read_jsonl(metrics_files(a.run_dir))
     selection = select(dev_curve(metrics), a.run_dir / "checkpoints")
     (a.run_dir / "selection.json").write_text(json.dumps(selection, indent=2) + "\n")
     print(json.dumps(selection, indent=2))

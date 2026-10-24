@@ -143,7 +143,9 @@ committed counts.
 Everything lands in `outputs/<RUN>/`: `checkpoints/global_step_N`, `rollouts/`
 and `dev/` (one JSONL of generations per step), `metrics.jsonl`, `rewards/` (one
 line per scored completion), `driver.log`, and `versions.txt` (the verl commit and
-the `arggym` version). Metrics also go to trackio, stored locally:
+the `arggym` version). A resumed run first renames the previous launch's
+`metrics.jsonl` and `driver.log` to `metrics.<time>.jsonl` and
+`driver.<time>.log`, since verl's logger would truncate them. Metrics also go to trackio, stored locally:
 
 ```bash
 TRACKIO_DIR=outputs/trackio .venv/bin/trackio show --project arggym-verl
@@ -191,8 +193,9 @@ expected values.
 - **Auto-stop (ArgGYM).** After a step's checkpoint is saved, the run ends
   cleanly if `actor/ppo_kl` was above 1e-3 for two consecutive steps, or, from
   step 6, `rollout_corr/kl` is above twice its mean over steps 1-5. The driver
-  log then has a line starting `AUTO-STOP:` with the reason; the thresholds are
-  `trainer.auto_stop` in the config. design.md, "Checkpoint selection and
+  log then has a line starting `AUTO-STOP:` with the reason, and `run.sh`
+  refuses to resume the run until its `AUTO-STOP` file is deleted; the
+  thresholds are `trainer.auto_stop` in the config. design.md, "Checkpoint selection and
   auto-stop".
 
 design.md, "The served model is the trained one" and "Precision, and the PPO

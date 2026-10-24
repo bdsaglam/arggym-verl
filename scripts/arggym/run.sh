@@ -17,6 +17,19 @@ RUN=${RUN:-$CONFIG}
 OUT="$ROOT/outputs/$RUN"
 mkdir -p "$OUT"
 
+# A run that stopped itself (arggym_verl.trainer.AutoStop) is not resumed by accident.
+if [ -e "$OUT/AUTO-STOP" ]; then
+  echo "$OUT stopped itself: $(cat "$OUT/AUTO-STOP")" >&2
+  echo "Delete $OUT/AUTO-STOP to resume it anyway." >&2
+  exit 1
+fi
+# verl's file logger and tee truncate their files: keep a resumed run's earlier ones,
+# which arggym_verl.report and the trainer read back (metrics.<time>.jsonl, oldest first).
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+for f in metrics.jsonl driver.log; do
+  if [ -s "$OUT/$f" ]; then mv "$OUT/$f" "$OUT/${f%.*}.$STAMP.${f##*.}"; fi
+done
+
 export ARGGYM_VERL_ROOT="$ROOT"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export TRACKIO_DIR="$ROOT/outputs/trackio"

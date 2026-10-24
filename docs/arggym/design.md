@@ -366,6 +366,8 @@ training step, after its last mini-batch (`engine_workers.update_actor`), over
 `zero_indexed_step: false`, so steps 1-3 train at 1/3, 2/3 and all of 1e-5;
 verl's default zero-indexed count would give step 1 an LR of 0 and waste its
 rollouts. `test_config.py` steps verl's own scheduler through the 100 steps.
+`actor/lr` logs the LR after the scheduler's step, so it reads one step ahead:
+step 1 trains at 3.3e-6 and logs 6.7e-6.
 
 **KL.** The KL loss's coefficient is 0: at LoRA's update size the earlier 0.001
 held nothing back (`actor/kl_loss` reached 0.17 at that coefficient while the
@@ -631,11 +633,21 @@ On the earlier run's metrics both rules first fire at step 60
 (`test_trainer.py`). The rule reads the step's metrics after its update. verl's
 `fit` saves the step's checkpoint and then calls `on_step_end`; there, if the
 rule fired, the mixin saves the step if it is off the 5-step grid, prints one
-line starting `AUTO-STOP:` with the reason to the driver log, and sets the
-step budget to the current step. The step then finishes as any other (dev if
-due, metrics, rollouts) and `fit`'s loop ends as when the budget is spent.
-`test_trainer.py` runs verl's own `fit` through such a stop. A resumed run
-rebuilds the rule's state from the metrics file. The auto-stop does not replace
+line starting `AUTO-STOP:` with the reason to the driver log, writes the
+reason to a file `AUTO-STOP` in the run directory, and sets the step budget to
+the current step. The step then finishes as any other (dev only if it is on the
+20-step grid, metrics, rollouts), `fit`'s loop ends and `on_train_end` runs.
+`test_trainer.py` runs verl's own `fit` through such a stop. `run.sh` refuses
+to resume a run with an `AUTO-STOP` file until it is deleted. The checkpoint of
+a stop off the dev grid, like every 5-step checkpoint between dev steps, has no
+dev score and is not in the selection until it is evaluated by hand.
+
+A resumed run rebuilds the rule's state from the run's metrics. verl's file
+logger truncates `metrics.jsonl` when it opens it (`verl/utils/tracking.py:541`),
+so `run.sh` renames an existing one to `metrics.<UTC time>.jsonl` before each
+launch (and `driver.log` likewise), and the trainer and `arggym_verl.report`
+read all of them, oldest first. If steps 1-5 lack `rollout_corr/kl`, its rule
+stays off and the driver log says so once. The auto-stop does not replace
 the served-policy check's hard stop, which raises before the update.
 
 ## Known gaps
@@ -647,10 +659,10 @@ the served-policy check's hard stop, which raises before the update.
   version) comes only from the reward log, which is written when
   `ARGGYM_VERL_REWARD_LOG` is set (`run.sh` sets it); without it the table is
   empty. The table has no test; the selection does.
-- The auto-stop and the trainer's `selection.json` read the metrics file
-  (`VERL_FILE_LOGGER_PATH`, which `run.sh` sets). Without it a resumed run's
-  auto-stop starts with no history (its `rollout_corr/kl` rule never arms) and
-  no `selection.json` is written during the run.
+- The auto-stop and the trainer's `selection.json` read the metrics files
+  beside `VERL_FILE_LOGGER_PATH`, which `run.sh` sets and rotates. Launched
+  without `run.sh`, a resumed run's auto-stop starts with no history (its
+  `rollout_corr/kl` rule stays off) and no `selection.json` is written.
 - No test covers the GSM8K run's 8,192-token training cap across a resumed
   completion. verl rewrites `max_tokens` on each attempt
   (`verl/workers/rollout/llm_server.py:254-333`), so it holds by reading, not by
