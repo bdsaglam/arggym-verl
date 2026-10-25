@@ -103,7 +103,8 @@ name); a run with the same `RUN` resumes from its latest checkpoint.
 
 Both use verl's LoRA recipe: rank 64, alpha 32, all linear layers, token-mean
 loss, clip 0.2, two optimizer steps per batch, truncated importance sampling
-capped at 2, and train on plain sampling (T 1, no top-p, top-k or penalty).
+capped at 2. GSM8K trains on plain sampling (T 1, no top-p or top-k); ArgGYM
+trains with the model card's sampling (top_p 0.95, top_k 20, presence penalty 1.5).
 
 - GSM8K keeps the recipe's KL loss (0.001 against the base model) with LR 3e-5
   constant, and evaluates dev at step 0 and every 10 steps, keeping every

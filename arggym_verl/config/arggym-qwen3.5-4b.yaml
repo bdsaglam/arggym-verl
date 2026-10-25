@@ -6,9 +6,10 @@
 # From 003: the 57 training cells and the curriculum's prior and half-life, the
 # 96-row dev split, the reward (a truncated completion pays 0 and stays in the
 # loss), the model revision, thinking on, the 40,960-token training cap, the
-# card's dev sampling (presence penalty 1.5) at a 65,536-token cap, 100 steps.
+# card's sampling (presence penalty 1.5) for training and dev, a 65,536-token dev
+# cap, 100 steps.
 # Set for long-CoT RL rather than taken from the GSM8K control: LR 1e-5 with
-# cosine decay, plain training sampling, a sharper curriculum weight, a KL term
+# cosine decay, the card's sampling for training as for dev, a sharper curriculum weight, a KL term
 # that is logged but not trained on, 18 prompts x 16 a step, 8 dev samples a row,
 # and the auto-stop. design.md, "ArgGYM run", gives each value's reason.
 
@@ -118,12 +119,11 @@ actor_rollout_ref:
       vllm:
         # As ArgGYM serves it: the vision tower is not loaded.
         language_model_only: true
-    # Training rollouts sample the policy itself: T 1, no top-p or top-k, and no
-    # presence penalty (agent_loops-arggym.yaml), so the sampled distribution is
-    # the one the trainer computes and the token IS weight covers only the engine gap.
+    # Training rollouts: the card's sampling; presence penalty 1.5 comes from the
+    # agent loop (design.md, "Training rollouts use the card's sampling").
     temperature: 1.0
-    top_p: 1.0
-    top_k: -1
+    top_p: 0.95
+    top_k: 20
     # Dev: the eval config's sampling, the card's (presence penalty 1.5 from the
     # agent loop). 8 samples a row: one standard error of dev success is about
     # 0.018 over 768 completions.
@@ -142,7 +142,11 @@ trainer:
     colocate_async:
       # No batch generated ahead: the curriculum draws a step's prompts after the
       # previous step's outcomes are in (curriculum.check_setup refuses a batch
-      # ahead). Each step trains on its own batch, sampled by the weights it trains.
+      # ahead), and no completion is aborted and resumed. A resumed completion is
+      # sent back as prompt plus tokens so far, and vLLM's presence penalty counts
+      # output tokens only (vllm/model_executor/layers/utils.py, apply_penalties),
+      # so the penalty would forget its first part. Each step trains on its own
+      # batch, sampled by the weights it trains.
       num_warmup_batches: 0
   n_gpus_per_node: 3
   total_training_steps: 100

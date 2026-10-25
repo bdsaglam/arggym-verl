@@ -1,13 +1,12 @@
-# Qwen3.5-4B. Training rollouts at 003's 40,960 cap with no presence penalty:
-# they sample the policy itself, as rollout.* sets it (T 1, no top-p or top-k).
-# Dev at the eval config's 65,536 (rollout.response_length) with the card's
-# presence penalty 1.5, which verl's sampling config has no field for; its
-# temperature, top-p and top-k come from rollout.val_kwargs.
+# Qwen3.5-4B. Training rollouts at 003's 40,960 cap, dev at the eval config's
+# 65,536 (rollout.response_length); both with the card's presence penalty 1.5,
+# which verl's sampling config has no field for. Temperature, top-p and top-k
+# come from rollout.* and rollout.val_kwargs.
 - name: train
   _target_: arggym_verl.agent_loop.SamplingAgentLoop
   sampling:
     max_tokens: 40960
-    presence_penalty: 0.0
+    presence_penalty: 1.5
 - name: dev
   _target_: arggym_verl.agent_loop.SamplingAgentLoop
   sampling:

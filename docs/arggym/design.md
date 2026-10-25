@@ -219,7 +219,7 @@ Dtypes:
 | Trainer forward/backward | BF16 compute, FP32 gradient reduce (FSDP2 `MixedPrecisionPolicy`, `transformer_impl.py:393-399,455`) | verl's default |
 | vLLM base weights | BF16 (`rollout.dtype`), the published checkpoint, loaded from safetensors | vendor precision |
 | vLLM adapter | vLLM LoRA dtype `auto`, BF16 (vLLM-side; not read in vLLM) | the factors are rounded on their own, not added into a weight, so no delta falls below a weight's ulp |
-| Sampled log-probs | `logprobs_mode: processed_logprobs` | the log-probs of the distribution sampled from, as TRL's server returns them. Both runs train on T 1, top_p 1, no top-k and no penalty, where these are the raw log-probs, so the IS weight covers the engine gap alone. With a filter or a penalty the sampled distribution would differ from the one the trainer computes, a gap the IS weight can reweight but not remove |
+| Sampled log-probs | `logprobs_mode: processed_logprobs` | the log-probs of the distribution sampled from, as TRL's server returns them. GSM8K trains on T 1, top_p 1, no top-k, where these are the raw log-probs and the IS weight covers the engine gap alone. ArgGYM trains with the card's filters and penalty, so its sampled distribution differs from the one the trainer computes, a gap the IS weight can reweight but not remove ("Training rollouts use the card's sampling") |
 
 ## Smoke checklist
 
@@ -349,7 +349,7 @@ capped at 2, and sets the rest for long chain-of-thought RL:
 | Prompts | `xml_tags`, `cot`, thinking on | 003 and the eval model config |
 | Optimizer | AdamW, LR 1e-5, 3-step linear warmup, cosine to 1e-6 at step 100 | below |
 | KL to the base model | computed and logged (`actor/kl_loss`), coefficient 0 | below |
-| Training rollouts | T 1.0, top_p 1.0, no top-k, no presence penalty, 40,960-token cap | below; the cap is 003's |
+| Training rollouts | the card's: T 1.0, top_p 0.95, top_k 20, presence penalty 1.5, 40,960-token cap | below; the cap is 003's |
 | Dev | the card's sampling: T 1.0, top_p 0.95, top_k 20, presence penalty 1.5 (min_p 0, repetition penalty 1), 65,536-token cap, 8 samples a row | the eval config through `rl.config.dev_sampling`; 8 samples below |
 | Schedule | 100 steps; dev at step 0 and every 20; a checkpoint every 5; the auto-stop | 003's step count; below |
 | Batch | 18 prompts x 16 = 288 completions; mini-batch 9 x 16 = 144 | below |
@@ -380,14 +380,16 @@ runs verl's `ppo_loss` with two references and compares the gradients).
 Turning `use_kl_loss` off instead would drop `actor/kl_loss`, and the
 served-policy check would run the reference pass itself.
 
-**Training rollouts sample the policy.** T 1 with no top-p, top-k or presence
-penalty samples the distribution the trainer computes, so the PPO ratio and the
-token IS weight see only the engine gap. The card's filters and penalty make the
-sampled distribution differ from the trainer's on every token; the IS weight
-can reweight tokens but not account for the tokens the filters never let
-through. Dev keeps the card's sampling, so dev success stays comparable with
-ArgGYM's evals. `test_config.py` runs verl's own `generate_sequences` with each
-split's agent loop and checks what reaches vLLM.
+**Training rollouts use the card's sampling.** T 1, top_p 0.95, top_k 20,
+presence penalty 1.5, as dev. The sampled distribution then differs from the one
+the trainer computes: the IS weight reweights tokens but cannot account for the
+tokens the filters never let through, and the gap is about 0.04 nats a token
+(`rollout_corr/kl` at step 1). Plain sampling (T 1, no top-p, top-k or penalty)
+removes that gap, to 0.0004, but Qwen3.5-4B then does not finish: on one step of
+192 rollouts at the same cells, 71% truncated at the 40,960 cap against 26%,
+17 completions looped against 8, and success fell from 0.34 to 0.11. The
+auto-stop watches the gap instead (below). `test_config.py` runs verl's own
+`generate_sequences` with each split's agent loop and checks what reaches vLLM.
 
 **Batch.** Sixteen completions a prompt, as DAPO and Nemotron-Cascade 2 use. A
 group trains the model only when its outcomes differ, and a prompt solved with

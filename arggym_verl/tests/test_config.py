@@ -355,10 +355,10 @@ def sampling_sent(cfg, validate: bool):
     return seen
 
 
-def test_arggym_trains_on_plain_sampling_and_evaluates_dev_with_the_cards(arggym):
+def test_arggym_trains_and_evaluates_dev_with_the_cards_sampling(arggym):
     train = sampling_sent(arggym, validate=False)
     assert {k: train[k] for k in ("temperature", "top_p", "top_k", "presence_penalty", "max_tokens")} \
-        == {"temperature": 1.0, "top_p": 1.0, "top_k": -1, "presence_penalty": 0.0, "max_tokens": 40960}
+        == {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "presence_penalty": 1.5, "max_tokens": 40960}
     assert train["repetition_penalty"] == 1.0 and train["logprobs"]
     dev = sampling_sent(arggym, validate=True)
     assert {k: dev[k] for k in ("temperature", "top_p", "top_k", "presence_penalty")} \
