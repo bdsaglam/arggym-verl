@@ -138,7 +138,7 @@ actor_rollout_ref:
     log_prob_max_token_len_per_gpu: 49152
 
 reward:
-  # What a training completion is paid (arggym_verl/reward.py, RewardShape; design.md,
+  # What a training completion is paid (arggym_verl/reward_shape.py, RewardShape; design.md,
   # "Reward modes"). binary: 1 for a finished success, else 0. partial: as binary,
   # except that a finished failure on a partial_tasks task is paid
   # partial_weight * max(0, (s - b) / (1 - b)), s the scorer's partial score and b

@@ -603,7 +603,7 @@ update.
 ## Reward modes
 
 `reward.mode` in the ArgGYM config sets what a training completion is paid
-(`arggym_verl/reward.py`, `RewardShape`). Every mode scores with the eval's
+(`arggym_verl/reward_shape.py`, `RewardShape`). Every mode scores with the eval's
 scorer, pays 0 for a truncated completion or a row the scorer refused, and
 leaves exact success where it was: the curriculum's pass/fail
 (`group_outcomes`), dev's `acc` and checkpoint selection read success, and dev

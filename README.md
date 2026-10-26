@@ -236,6 +236,7 @@ arggym_verl/            our package
                         (mixins on verl's trainer)
   curriculum.py         ArgGYM's curriculum as verl's training sampler
   reward.py             reward manager: ArgGYM's scorers on the sampled token ids
+  reward_shape.py       reward.mode: what a training completion is paid
   floors.py             uninformed-answer floors per cell, for partial credit
   agent_loop.py         per-split sampling overrides on verl's single-turn agent loop
   data.py               task config -> parquet

@@ -93,3 +93,14 @@ def test_arggym_reward_matches_arggyms():
         assert {k: rec[k] for k in case["record"]} == case["record"], (case["row_id"], case["case"])
     assert {c["case"] for c in want["cases"] if c["reward"] == 1.0} == {
         "reference", "reference_in_reasoning_only", "reference_without_tags"}
+
+
+def test_verl_loads_the_manager_from_its_file_path():
+    """verl imports reward.py from its path, outside sys.modules (reward_manager.source
+    importlib); a dataclass defined in that module fails to build there."""
+    from pathlib import Path
+
+    from verl.utils.import_utils import load_extern_object
+
+    path = Path(__file__).resolve().parents[1] / "reward.py"
+    assert load_extern_object(str(path), "ArgGymRewardManager").__name__ == "ArgGymRewardManager"
