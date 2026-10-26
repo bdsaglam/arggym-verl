@@ -1,10 +1,11 @@
 """verl's V1 trainer, plus a check that vLLM serves the policy being trained,
-with `data.curriculum` ArgGYM's curriculum sampler, with `trainer.auto_stop` a
-clean stop when the policy drifts, and a `selection.json` kept current after
-every dev evaluation.
+with `data.curriculum` ArgGYM's curriculum sampler, the step's paid reward beside
+its exact success, with `trainer.auto_stop` a clean stop when the policy drifts,
+and a `selection.json` kept current after every dev evaluation.
 
 `install(mode)` replaces the trainer registered for `mode` by a subclass with
-`ServedPolicyCheck`, `CurriculumFeedback`, `AutoStop` and `DevSelection` mixed in;
+`ServedPolicyCheck`, `CurriculumFeedback`, `RewardMetrics`, `AutoStop` and
+`DevSelection` mixed in;
 nothing else about the trainer changes, and the mode string stays verl's, so every
 branch verl takes on it is unchanged. Without `data.curriculum`,
 `CurriculumFeedback` does nothing; without `trainer.auto_stop`, `AutoStop` does
@@ -158,6 +159,26 @@ class CurriculumFeedback:
         metrics.update(cur.metrics(self.curriculum, self.global_steps,
                                    self.config.data.curriculum.table_every))
         metrics["curriculum/zero_signal_share"] = cur.zero_signal_share(infos, rewards)
+
+
+class RewardMetrics:
+    """Logs `arggym_verl.reward.step_metrics` each step: the paid reward (verl's
+    `critic/score` is the same number) beside the exact success the curriculum and
+    dev count, the shares of groups with no reward and no success variance, and both
+    means per task. Read from the transfer queue in `_compute_advantage`, after the
+    rewards and before the update."""
+
+    def _compute_advantage(self, batch, metrics: dict):
+        import transfer_queue as tq
+
+        from arggym_verl.reward import step_metrics
+
+        keys = [k for k, tag in zip(batch.keys, batch.tags) if not tag.get("is_padding", False)]
+        data = tq.kv_batch_get(keys=keys, partition_id=batch.partition_id,
+                               select_fields=["extra_info", "extra_fields"])
+        rewards = [f["reward_extra_info"] for f in _as_list(data["extra_fields"])]
+        metrics.update(step_metrics(_as_list(data["extra_info"]), rewards))
+        return super()._compute_advantage(batch, metrics)
 
 
 class StopRule:
@@ -314,6 +335,7 @@ def install(mode: str) -> type:
     if issubclass(base, ServedPolicyCheck):
         return base
     checked = type(f"Checked{base.__name__}",
-                   (ServedPolicyCheck, CurriculumFeedback, AutoStop, DevSelection, base), {})
+                   (ServedPolicyCheck, CurriculumFeedback, RewardMetrics, AutoStop, DevSelection,
+                    base), {})
     trainer_base.TRAINER_REGISTRY[mode] = checked
     return checked

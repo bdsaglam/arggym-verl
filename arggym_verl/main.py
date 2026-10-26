@@ -4,8 +4,8 @@
 
 Identical to `python -m verl.trainer.main_ppo` except that the Ray task runner,
 before it builds the trainer, wraps the configured V1 trainer mode with
-`arggym_verl.trainer`'s `ServedPolicyCheck`, `CurriculumFeedback`, `AutoStop` and
-`DevSelection`.
+`arggym_verl.trainer`'s `ServedPolicyCheck`, `CurriculumFeedback`, `RewardMetrics`,
+`AutoStop` and `DevSelection`.
 """
 from __future__ import annotations
 

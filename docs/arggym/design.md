@@ -344,7 +344,7 @@ capped at 2, and sets the rest for long chain-of-thought RL:
 | Setting | Value | Source |
 |---|---|---|
 | Rows | training: 5,700 rows of 57 (task, level) cells; dev: 96 rows, one per cell | 003's `train_cells` through `rl.pool.restrict`; 003's pool |
-| Reward | strict success, 1 or 0; a truncated completion pays 0 and stays in the loss | `rl.reward` at `a5b05fb`, vendored |
+| Reward | strict success, 1 or 0; a truncated completion pays 0 and stays in the loss (`reward.mode: binary`; "Reward modes") | `rl.reward` at `a5b05fb`, vendored |
 | Model | Qwen3.5-4B, revision `851bf6e`, BF16 | 003 |
 | Prompts | `xml_tags`, `cot`, thinking on | 003 and the eval model config |
 | Optimizer | AdamW, LR 1e-5, 3-step linear warmup, cosine to 1e-6 at step 100 | below |
@@ -599,6 +599,68 @@ one's outcomes. `test_trainer.py` runs verl's own `step` (prompt fetch through
 `_fetch_one_gen_batch`, then `_step_once`) for three steps and checks the order
 draw, generate, old log-probs, reference, curriculum update, advantage, actor
 update.
+
+## Reward modes
+
+`reward.mode` in the ArgGYM config sets what a training completion is paid
+(`arggym_verl/reward.py`, `RewardShape`). Every mode scores with the eval's
+scorer, pays 0 for a truncated completion or a row the scorer refused, and
+leaves exact success where it was: the curriculum's pass/fail
+(`group_outcomes`), dev's `acc` and checkpoint selection read success, and dev
+completions are paid as in `binary`.
+
+- `binary`, the default: 1 for a finished success, else 0.
+- `partial`: as `binary`, except that a finished failure on a task in
+  `reward.partial_tasks` is paid `w * max(0, (s - b) / (1 - b))`. `s` is the
+  scorer's partial score, `w` is `reward.partial_weight` (0 < w < 1, so an exact
+  answer always beats a near miss), and `b` is the floor of the row's
+  (task, level) cell from `reward.partial_baseline`.
+- `native`: the scorer's own score on every task, 0 for a completion with no
+  answer region. That is F1 on the label-map tasks, and on the construction
+  tasks 0.5 + 0.5 x efficiency for a success and progress capped at 0.25 for a
+  failure.
+
+Turn partial credit on with `reward.mode=partial` on the `run.sh` command line;
+the config already names the tasks, the weight and the floors.
+
+**Floors.** `b` is ArgGYM's own floor (`arggym.floors`, the baseline its eval
+reports): the best score of a fixed uninformed answer, such as every claim given
+one status, the theory copied back, a bare status line or nothing.
+`python -m arggym_verl.floors` measures it on every row of the training pool,
+100 a cell, and writes `data/arggym-reward/floors-0df63cbebe86.json`. The floor
+is kept per (task, level) because it moves with the level: on `semantics_query`
+it runs from 0.57 (L5) to 0.81 (L3), and its training cells L1 and L2 sit at
+0.78, where the task-wide floor of 0.68 would pay an uninformed answer.
+
+**Which tasks.** Partial credit means something only where wrong answers score
+well above the floor. On the training cells, with per-cell floors:
+
+| Task | Partial score measures | Floor (cells trained) | Wrong answers, mean s | Mean (s - b)/(1 - b) |
+|---|---|---|---|---|
+| status_query | F1 over claim statuses | 0.33-0.39 | 0.78 | 0.66 |
+| defeat_diagnosis | 0.85 F1 over failure points + 0.15 status (0.60/0.15/0.25 with survival reasons) | 0.08-0.13 | 0.66 | 0.64 |
+| formalization | behaviour F1, directive F1 and axiom/strict F1, weighted | 0.20-0.30 | 0.50 | 0.44 |
+| semantics_query | F1 over (claim, semantics) statuses | 0.78 | 0.69 | 0.11 |
+| perturbation | F1 over changed claims | 0.13 | 0.07 | 0.06 |
+| claim_chain | directive F1 x order factor | 0.14-0.19 | 0.07 | 0.06 |
+| six construction tasks | 0.25 x progress toward the goals | 0 | 0.00-0.07 | 0.00-0.07 |
+
+Wrong answers are the finished failures of the three ArgGYM runs' training
+rollouts. The config's `partial_tasks` are the first three. On `semantics_query`
+an uninformed answer scores more than the average wrong one, and on the rest
+wrong answers sit at or below the floor.
+
+With `norm_adv_by_std_in_grpo`, `w` does not scale a group whose completions all
+fail: its advantages are divided by the group's own spread, so two partial
+scores 0.01 apart get advantages of the same size as a success against a
+failure. `w` sets how far a near miss sits below a success in a mixed group.
+
+**Metrics.** `RewardMetrics` (trainer.py) logs each step `reward/paid_mean`
+(the number verl logs as `critic/score/mean`), `reward/success_mean`,
+`reward/no_reward_variance_share` and `reward/no_success_variance_share` (the
+shares of groups whose rewards, or whose outcomes, are all equal; the first
+drops below the second once partial credit pays), and both means per task as
+`reward/paid_mean/<task>` and `reward/success_mean/<task>`.
 
 ## Checkpoint selection and auto-stop
 

@@ -12,7 +12,8 @@ import torch
 from omegaconf import OmegaConf
 
 from arggym_verl.trainer import (TRACK_FAIL, AutoStop, CurriculumFeedback, DevSelection,
-                                 ServedPolicyCheck, StopRule, check_served, install, served_stats)
+                                 RewardMetrics, ServedPolicyCheck, StopRule, check_served, install,
+                                 served_stats)
 
 
 def engines(serve_adapter: bool, shift: float = 0.02, noise: float = 0.08, n=(64, 512), seed=0):
@@ -82,7 +83,7 @@ def test_install_wraps_the_registered_mode():
 
     cls = install("colocate_async")
     assert get_trainer_cls("colocate_async") is cls
-    for mixin in (ServedPolicyCheck, CurriculumFeedback, AutoStop, DevSelection):
+    for mixin in (ServedPolicyCheck, CurriculumFeedback, RewardMetrics, AutoStop, DevSelection):
         assert issubclass(cls, mixin), mixin
     assert issubclass(cls, PPOTrainerColocateAsync)
     assert install("colocate_async") is cls
@@ -276,6 +277,9 @@ class StepStub(StubPasses):
     _next_train_batch = PPOTrainer._next_train_batch
     _fetch_one_gen_batch = PPOTrainer._fetch_one_gen_batch
 
+    #: What a failed completion is paid: 0 as in binary mode, or partial credit.
+    partial_pay = 0.0
+
     def __init__(self, queue, config, dataset):
         from transfer_queue import KVBatchMeta
 
@@ -311,8 +315,9 @@ class StepStub(StubPasses):
             for s in range(self.config.actor_rollout_ref.rollout.n):
                 key = f"{uid}_{s}_0"
                 acc = float((info["index"] + s) % 3 == 0)
+                score = acc or self.partial_pay * (s % 2)
                 self.queue.rows[key] = {"extra_info": info, "extra_fields": {"reward_extra_info": {
-                    "score": acc, "acc": acc, "refused": 0.0, "truncated": 0.0}}}
+                    "score": score, "acc": acc, "refused": 0.0, "truncated": 0.0}}}
                 keys.append(key)
         random.Random(len(self.calls)).shuffle(keys)
         self.submitted = keys
@@ -358,6 +363,28 @@ def test_curriculum_learns_each_step_before_the_next_draw(queue, arggym_cfg):
     assert [x[1] for x in trainer.calls if x[0] in ("draw", "learn")] == [0, 0, 1, 1, 2, 2]
     # The trained groups are the drawn ones, one per prompt.
     assert [o["n"] for o in c.draws[2]["outcomes"]] == [arggym_cfg.actor_rollout_ref.rollout.n] * arggym_cfg.data.train_batch_size
+
+
+class PartialPay(ServedPolicyCheck, CurriculumFeedback, RewardMetrics, StepStub):
+    partial_pay = 0.2
+
+
+def test_partial_pay_reaches_the_metrics_and_not_the_curriculum(queue, arggym_cfg):
+    """With failures paid partial credit, the curriculum still learns successes (`acc`), and
+    the step logs the paid reward and exact success apart."""
+    trainer = PartialPay(queue, arggym_cfg, Rows())
+    c = trainer.curriculum
+    metrics = {}
+    trainer.step(metrics, {})
+    rows = queue.rows.values()
+    acc = [r["extra_fields"]["reward_extra_info"]["acc"] for r in rows]
+    paid = [r["extra_fields"]["reward_extra_info"]["score"] for r in rows]
+    assert sum(paid) > sum(acc)
+    assert sum(o["successes"] for o in c.draws[0]["outcomes"]) == sum(acc)
+    assert metrics["reward/success_mean"] == pytest.approx(sum(acc) / len(acc))
+    assert metrics["reward/paid_mean"] == pytest.approx(sum(paid) / len(paid))
+    assert metrics["reward/no_reward_variance_share"] <= metrics["reward/no_success_variance_share"]
+    assert metrics["curriculum/zero_signal_share"] == metrics["reward/no_reward_variance_share"]
 
 
 def test_without_curriculum_verls_sampler_stays(queue, arggym_cfg):

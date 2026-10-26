@@ -137,6 +137,22 @@ actor_rollout_ref:
   ref:
     log_prob_max_token_len_per_gpu: 49152
 
+reward:
+  # What a training completion is paid (arggym_verl/reward.py, RewardShape; design.md,
+  # "Reward modes"). binary: 1 for a finished success, else 0. partial: as binary,
+  # except that a finished failure on a partial_tasks task is paid
+  # partial_weight * max(0, (s - b) / (1 - b)), s the scorer's partial score and b
+  # its floor on the row's (task, level). native: the scorer's score on every task.
+  # Dev, the curriculum and checkpoint selection count exact success in every mode.
+  mode: binary
+  # Below 1, so an exact answer is always paid more than a near miss.
+  partial_weight: 0.3
+  # The tasks whose wrong answers score well above an uninformed answer's floor.
+  partial_tasks: [status_query, defeat_diagnosis, formalization]
+  # Floors per (task, level) on the training pool; the file says its source.
+  # Relative to the repository root.
+  partial_baseline: data/arggym-reward/floors-0df63cbebe86.json
+
 trainer:
   v1:
     colocate_async:

@@ -115,6 +115,10 @@ trains with the model card's sampling (top_p 0.95, top_k 20, presence penalty 1.
   65,536-token dev caps, dev with the model card's sampling (presence penalty
   1.5) on 8 samples a row at step 0 and every 20 steps, a checkpoint every 5
   steps, and the auto-stop (below).
+- ArgGYM pays 1 for an exact answer and 0 otherwise; `reward.mode=partial` also pays
+  near misses on status_query, defeat_diagnosis and formalization above an
+  uninformed answer's floor, and `reward.mode=native` pays the scorer's own score
+  (design.md, "Reward modes").
 
 The model paths point into the Hugging Face cache (`HF_HUB_CACHE`, which
 `run.sh` sets from your Hugging Face settings).
@@ -232,6 +236,7 @@ arggym_verl/            our package
                         (mixins on verl's trainer)
   curriculum.py         ArgGYM's curriculum as verl's training sampler
   reward.py             reward manager: ArgGYM's scorers on the sampled token ids
+  floors.py             uninformed-answer floors per cell, for partial credit
   agent_loop.py         per-split sampling overrides on verl's single-turn agent loop
   data.py               task config -> parquet
   report.py             best checkpoint and training-side metrics of a run
