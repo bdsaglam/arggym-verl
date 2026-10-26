@@ -612,6 +612,8 @@ def test_selection_is_written_with_the_dev_scores_just_evaluated(tmp_path, monke
     metrics.jsonl (verl logs them at the end of the step). selection.json names step 40."""
     import json
 
+    import numpy as np
+
     key = "val-core/arggym/acc/mean@8"
     metrics = tmp_path / "metrics.jsonl"
     metrics.write_text("".join(json.dumps({"step": s, "data": {key: v}}) + "\n"
@@ -619,7 +621,8 @@ def test_selection_is_written_with_the_dev_scores_just_evaluated(tmp_path, monke
     for s in (20, 40):
         (tmp_path / "checkpoints" / f"global_step_{s}").mkdir(parents=True)
     monkeypatch.setenv("VERL_FILE_LOGGER_PATH", str(metrics))
-    val = Selecting(tmp_path / "checkpoints", 40, {key: 0.48})._validate()
+    # verl's live dev scores are numpy floats; a comparison of two gives a numpy bool.
+    val = Selecting(tmp_path / "checkpoints", 40, {key: np.float64(0.48)})._validate()
     assert val == {key: 0.48}
     sel = json.loads((tmp_path / "selection.json").read_text())
     assert (sel["best_step"], sel["best_metric"], sel["base_metric"]) == (40, 0.48, 0.29)

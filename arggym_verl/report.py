@@ -55,7 +55,8 @@ def select(curve: Dict[int, Dict[str, float]], ckpt_root: Path) -> Dict[str, Any
                 if k.startswith("val-core/") and "/acc/mean@" in k), None)
     if key is None:
         return {"metric": None}
-    scores = {s: row[key] for s, row in curve.items() if key in row}
+    # Live dev scores arrive as numpy floats; JSON takes Python ones.
+    scores = {s: float(row[key]) for s, row in curve.items() if key in row}
     saved = {s: s for s in scores if (ckpt_root / f"global_step_{s}").exists()}
     best = max(saved, key=lambda s: (scores[s], -s)) if saved else None
     base = scores.get(0)
