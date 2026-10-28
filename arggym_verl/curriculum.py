@@ -144,6 +144,10 @@ def check_setup(config, trainer_mode: str, parameter_sync_step: int) -> None:
         problems.append("group filtering and refills draw prompts beyond one batch a step")
     if v1.sampler.get("custom_sampler", {}).get("path"):
         problems.append("a custom replay buffer may sample other than one step's groups")
+    c = data.get("curriculum") or {}
+    if c.get("task_balanced", False) and not c.get("floor", 0) > 0:
+        # A task whose cells all sit at or below the margin would weigh 0 / 0.
+        problems.append("task_balanced needs floor > 0")
     if problems:
         raise ValueError("data.curriculum: " + "; ".join(problems))
 

@@ -479,3 +479,20 @@ def compose_v3():
     with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
         return compose(config_name="arggym-qwen3.5-4b-v3",
                        overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+
+
+def test_setup_refuses_task_balanced_without_a_floor(arggym):
+    """A task whose cells all sit at or below the margin weighs 0 without a floor, and the
+    two-level draw would divide 0 by 0."""
+    from omegaconf import OmegaConf
+
+    from arggym_verl.curriculum import check_setup
+
+    cfg = OmegaConf.create(OmegaConf.to_container(arggym))
+    OmegaConf.update(cfg, "data.curriculum.task_balanced", True, force_add=True)
+    check_setup(cfg, "colocate_async", 1)
+    OmegaConf.update(cfg, "data.curriculum.floor", 0.0)
+    with pytest.raises(ValueError, match="task_balanced needs floor > 0"):
+        check_setup(cfg, "colocate_async", 1)
+    OmegaConf.update(cfg, "data.curriculum.task_balanced", False)
+    check_setup(cfg, "colocate_async", 1)
