@@ -13,9 +13,10 @@ prompt:
 data:
   tasks: all
   # 003's levels plus 9-12. Each (task, level, ordering) cell is frozen on its own seed
-  # scan (arggym.core.freeze, _filled_cells), so the L1-8 rows are 003's rows; the pool
-  # directory is a new hash of this block. 12 tasks x 12 levels x 4 orderings x 25 =
-  # 14,400 training rows, 100 a (task, level) cell.
+  # scan (arggym.core.freeze, _filled_cells), so the L1-8 rows are 003's rows, but for
+  # metadata.source_index, a row's position in its file; the pool directory is a new
+  # hash of this block. 12 tasks x 12 levels x 4 orderings x 25 = 14,400 training rows,
+  # 100 a (task, level) cell.
   levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
   # 003's seed windows; rl_pool.check_windows refuses an overlap with the eval specs.
   train: {seed_start: 1000000, take: 25, scan_limit: 100}

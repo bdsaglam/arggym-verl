@@ -2,12 +2,13 @@
 
     python -m arggym_verl.data arggym_verl/tasks/gsm8k-hard.yaml --out data/gsm8k-hard
     python -m arggym_verl.data arggym_verl/tasks/arggym-003.yaml --out data/arggym-qwen3.5-4b
+    python -m arggym_verl.data arggym_verl/tasks/arggym-004.yaml --out data/arggym-qwen3.5-4b-v3
 
-scripts/arggym/prepare_data.sh runs both.
+scripts/arggym/prepare_data.sh runs all three.
 
 The first argument is a task config (`arggym_verl/tasks/`), the `task`, `data`,
-`prompt` and `train_cells` blocks of the ArgGYM TRL run it reproduces; `key=value`
-arguments override it. The rows come from ArgGYM's selection code, vendored in
+`prompt` and `train_cells` blocks of the ArgGYM TRL run it reproduces, and
+optionally `dev_levels`, the levels dev keeps; `key=value` arguments override it. The rows come from ArgGYM's selection code, vendored in
 `arggym_verl.vendor`: `rl_gsm8k.load_splits` for `task: gsm8k`, `rl_pool.load_split`
 for ArgGYM, with the training rows restricted to `train_cells` by `rl_pool.restrict`.
 An ArgGYM pool that is not there yet is built first (`rl_pool.build`: the `arggym`
@@ -64,6 +65,10 @@ def arggym_rows(cfg: Dict[str, Any], workers: int | None = None) -> Dict[str, Li
         if split == "train":
             # Training draws only from the config's `train_cells`; dev keeps every cell.
             rows = pool.restrict(rows, cfg.get("train_cells"))
+        elif cfg.get("dev_levels"):
+            # Dev on these levels only: a pool with more levels keeps an older run's dev.
+            levels = set(cfg["dev_levels"])
+            rows = [r for r in rows if r["metadata"]["level"] in levels]
         rows = pool.trl_rows(rows, template, elicit)
         out[split] = [
             {"data_source": DATA_SOURCE["arggym"], "prompt": r["prompt"], "agent_name": split,
@@ -113,6 +118,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     write(splits, a.out, {
         "config": str(config.relative_to(ROOT)) if config.is_relative_to(ROOT) else str(config),
         "overrides": a.overrides, "data": cfg["data"], "train_cells": cfg.get("train_cells"),
+        **({"dev_levels": cfg["dev_levels"]} if cfg.get("dev_levels") else {}),
         "vendored_from": vendor.SOURCE_COMMIT, "arggym_version": version("arggym")})
     print(json.dumps({s: len(r) for s, r in splits.items()}), "->", a.out)
     return 0

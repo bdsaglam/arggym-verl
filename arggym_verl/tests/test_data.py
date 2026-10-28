@@ -120,3 +120,70 @@ def test_eval_keys_cover_both_eval_tasksets():
 
     questions, theories = rl_pool.eval_keys()
     assert len(questions) == 7200 and 0 < len(theories) <= 7200
+
+
+# ---------------------------------------------------------------- v3: arggym-004, levels 1-12
+
+TASK_004 = ROOT / "arggym_verl/tasks/arggym-004.yaml"
+
+
+@pytest.fixture(scope="module")
+def cfg004():
+    from arggym_verl.vendor import rl_config
+
+    return rl_config.load(str(TASK_004), [f"output_root={ARGGYM_POOL_ROOT}"])
+
+
+@pytest.fixture(scope="module")
+def v3(cfg004, tmp_path_factory):
+    return written(cfg004, tmp_path_factory, "arggym-v3")
+
+
+def test_004_pool_holds_003s_rows_on_levels_1_to_8(arggym_cfg, cfg004):
+    """Each (task, level, ordering) cell is frozen on its own seed scan, so the 1-12 pool's
+    L1-8 rows are 003's, row for row; its dev split keeps 003's 96 rows on L1-8. Only
+    `metadata.source_index`, a row's position in its file, differs, as between ArgGYM's
+    lite and standard tasksets (vendor/conf/taskset-lite.yaml)."""
+    from arggym.core.freeze import taskset_hash
+
+    from arggym_verl.vendor import rl_pool
+
+    def content(r):
+        return json.dumps({**r, "metadata": {k: v for k, v in r["metadata"].items()
+                                             if k != "source_index"}}, sort_keys=True, default=str)
+
+    assert rl_pool.pool_dir(cfg004).name == "16f6114d9306"
+    for split in ("train", "dev"):
+        new, old = rl_pool.load_split(cfg004, split), rl_pool.load_split(arggym_cfg, split)
+        summary = json.loads((rl_pool.pool_dir(cfg004) / "summary.json").read_text())
+        assert taskset_hash(new) == summary[split]["taskset_hash"]
+        low = [r for r in new if r["metadata"]["level"] <= 8]
+        assert [content(r) for r in low] == [content(r) for r in old], split
+    train = rl_pool.load_split(cfg004, "train")
+    assert len(train) == 12 * 12 * 4 * 25
+
+
+def test_v3_trains_on_its_82_cells_and_evaluates_003s_96_dev_rows(arggym_cfg, cfg004, v3):
+    listed = {(t, lv) for t, levels in cfg004["train_cells"].items() for lv in levels}
+    train = [(e["task"], e["level"]) for e in v3["train"]["extra_info"]]
+    assert len(listed) == 82 and set(train) == listed and len(train) == 8200
+    manifest003 = json.loads((ROOT / "data/arggym-qwen3.5-4b/manifest.json").read_text())
+    dev = [e["id"] for e in v3["dev"]["extra_info"]]
+    assert dev == manifest003["ids"]["dev"] and len(dev) == 96
+    # The cells both runs train on have the same rows, in the same order.
+    both = listed & {(t, lv) for t, levels in arggym_cfg["train_cells"].items() for lv in levels}
+    assert len(both) == 56
+    old = [i for i in manifest003["ids"]["train"] if (i.split("/")[0], int(i.split("/")[1][1:])) in both]
+    new = [e["id"] for e in v3["train"]["extra_info"] if (e["task"], e["level"]) in both]
+    assert new == old
+    manifest = json.loads((ROOT / "data/arggym-qwen3.5-4b-v3/manifest.json").read_text())
+    assert manifest["ids"] == {"train": [e["id"] for e in v3["train"]["extra_info"]], "dev": dev}
+    assert manifest["dev_levels"] == list(range(1, 9))
+
+
+def test_v3_dev_without_dev_levels_is_all_144_cells(cfg004):
+    from arggym_verl.vendor import rl_config
+
+    rows = data.build(rl_config.apply(cfg004, ["dev_levels=null"]))["dev"]
+    cells = [(e["extra_info"]["task"], e["extra_info"]["level"]) for e in rows]
+    assert len(cells) == len(set(cells)) == 144

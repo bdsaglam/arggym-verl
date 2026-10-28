@@ -13,6 +13,12 @@
 # out byte-identical to the committed dev.jsonl and summary.json, so `git status`
 # shows any difference.
 #
+# ArgGYM v3: the same task on levels 1-12 (arggym_verl/tasks/arggym-004.yaml), training
+# restricted to its 82 cells, dev 003's 96 rows (dev_levels). Its pool
+# (data/arggym-pool/pools/16f6114d9306/, 14,400 training rows) holds 003's rows on
+# L1-8 (but for metadata.source_index, a row's position in its file); built from the
+# seeds when missing, 18 minutes with 32 workers.
+#
 # Each output directory gets a manifest.json with the ids; the committed manifests let
 # `git diff` show whether the rows changed.
 set -euo pipefail
@@ -22,4 +28,6 @@ PY=.venv/bin/python
 
 "$PY" -m arggym_verl.data arggym_verl/tasks/gsm8k-hard.yaml --out data/gsm8k-hard
 "$PY" -m arggym_verl.data arggym_verl/tasks/arggym-003.yaml --out data/arggym-qwen3.5-4b \
+  ${POOL_WORKERS:+--workers "$POOL_WORKERS"}
+"$PY" -m arggym_verl.data arggym_verl/tasks/arggym-004.yaml --out data/arggym-qwen3.5-4b-v3 \
   ${POOL_WORKERS:+--workers "$POOL_WORKERS"}
