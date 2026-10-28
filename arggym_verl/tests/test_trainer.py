@@ -5,6 +5,7 @@ The step-order tests run verl's own `PPOTrainer._step_once`, `step` and `fit` ov
 stub passes that write to an in-memory transfer queue with the real one's field
 semantics.
 """
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -485,10 +486,13 @@ class FitStub:
     from verl.trainer.ppo.v1.trainer_base import PPOTrainer
     fit = PPOTrainer.fit
 
-    def __init__(self, script, run_dir, total=10, save_freq=5, auto_stop=True):
+    #: What `_validate` returns: one dev key, as verl's `val-core/<data_source>/acc/mean@N`.
+    DEV_KEY = "val-core/arggym/acc/mean@8"
+
+    def __init__(self, script, run_dir, total=10, save_freq=5, auto_stop=True, test_freq=0):
         trainer = {"project_name": "p", "experiment_name": "e", "logger": [], "val_before_train": False,
-                   "total_epochs": 1, "save_freq": save_freq, "test_freq": 0, "rollout_data_dir": None,
-                   "default_local_dir": str(run_dir / "checkpoints")}
+                   "total_epochs": 1, "save_freq": save_freq, "test_freq": test_freq,
+                   "rollout_data_dir": None, "default_local_dir": str(run_dir / "checkpoints")}
         if auto_stop:
             trainer["auto_stop"] = {"ppo_kl_max": 1e-3, "ppo_kl_steps": 2, "rollout_kl_factor": 2.0,
                                     "baseline_steps": 5}
@@ -496,6 +500,8 @@ class FitStub:
         self.script, self.global_steps, self.total_training_steps = script, 0, total
         self.steps_per_epoch = total
         self.saved, self.logged, self.synced, self.ended = [], [], [], False
+        #: (step, weight syncs so far) per dev evaluation; step -> the metrics fit logged.
+        self.validated, self.metrics = [], {}
 
     def step(self, metrics, timing_raw):
         pk, rk = self.script[self.global_steps - 1]
@@ -504,9 +510,16 @@ class FitStub:
 
     def _save_checkpoint(self):
         self.saved.append(self.global_steps)
+        ckpt = Path(self.config.trainer.default_local_dir) / f"global_step_{self.global_steps}"
+        ckpt.mkdir(parents=True, exist_ok=True)
+
+    def _validate(self):
+        self.validated.append((self.global_steps, len(self.synced)))
+        return {self.DEV_KEY: 0.3 + self.global_steps / 100}
 
     def _compute_metrics(self, batch, metrics, timing_raw, global_steps, epoch):
         self.logged.append(global_steps)
+        self.metrics[global_steps] = dict(metrics)
 
     def on_step_end(self):  # colocate_async: the weight sync
         self.synced.append(self.global_steps)
@@ -568,6 +581,35 @@ def test_auto_stop_ends_verls_fit_after_the_step_and_its_checkpoint(quiet_fit, c
     out = [line for line in capsys.readouterr().out.splitlines() if line.startswith("AUTO-STOP:")]
     assert len(out) == 1 and f"step {stop_at}:" in out[0] and "actor/ppo_kl" in out[0]
     assert (tmp_path / "AUTO-STOP").read_text().startswith(f"step {stop_at}:")
+
+
+class StoppingSelectingFit(AutoStop, DevSelection, FitStub):
+    pass
+
+
+@pytest.mark.parametrize("stop_at, validated", [(7, [(7, 7)]), (20, [(10, 10), (20, 20)]),
+                                                (13, [(10, 10), (13, 13)])])
+def test_auto_stop_evaluates_dev_at_the_stop_step(quiet_fit, monkeypatch, tmp_path, stop_at,
+                                                  validated):
+    """dev every 10 steps of 30. A stop off the grid (7, 13) is evaluated at the stop, after the
+    step's weight sync, and its dev score is logged with the step; a stop on the grid (20) is
+    evaluated once, by fit. selection.json names the stop step's checkpoint."""
+    import json
+
+    metrics = tmp_path / "metrics.jsonl"
+    monkeypatch.setenv("VERL_FILE_LOGGER_PATH", str(metrics))
+    script = [(1e-4, 0.04)] * 30
+    script[stop_at - 2] = script[stop_at - 1] = (2e-3, 0.04)
+    trainer = StoppingSelectingFit(script, tmp_path, total=30, test_freq=10)
+    trainer.fit(agent_loop_manager=None)
+    assert trainer.logged[-1] == stop_at
+    # (step, syncs so far): the stop step's evaluation follows its own weight sync.
+    assert trainer.validated == validated
+    assert trainer.metrics[stop_at][FitStub.DEV_KEY] == pytest.approx(0.3 + stop_at / 100)
+    assert "testing" in trainer.timing_raw  # the stop step's timing, which fit logs
+    sel = json.loads((tmp_path / "selection.json").read_text())
+    assert sel["best_step"] == stop_at
+    assert (tmp_path / "checkpoints" / f"global_step_{stop_at}").is_dir()
 
 
 def test_without_auto_stop_the_run_goes_on(quiet_fit, tmp_path):
