@@ -1,0 +1,86 @@
+# The v3 run's rows: `python -m arggym_verl.data` reads this file. 003's task
+# (arggym-003.yaml) on levels 1-12: the same prompt, the same seed windows, dev
+# kept to 003's 96 rows, and training cells chosen by the paid rate of
+# `reward.mode: partial`.
+task: arggym
+# The pool is built under <output_root>/pools/<hash>, relative to the repository root.
+output_root: data/arggym-pool
+
+prompt:
+  template: xml_tags
+  elicitation: cot
+
+data:
+  tasks: all
+  # 003's levels plus 9-12. Each (task, level, ordering) cell is frozen on its own seed
+  # scan (arggym.core.freeze, _filled_cells), so the L1-8 rows are 003's rows; the pool
+  # directory is a new hash of this block. 12 tasks x 12 levels x 4 orderings x 25 =
+  # 14,400 training rows, 100 a (task, level) cell.
+  levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  # 003's seed windows; rl_pool.check_windows refuses an overlap with the eval specs.
+  train: {seed_start: 1000000, take: 25, scan_limit: 100}
+  # One row per (task, level), orderings rotated by level (rl_pool.pick_dev, per cell).
+  # The dev split drops what the training pool holds; an L9-12 theory differs from
+  # every L1-8 one in size, so the L1-8 dev rows stay 003's.
+  dev: {seed_start: 2000000, take: 1, scan_limit: 40, per_task_level: 1}
+
+# Dev keeps levels 1-8: 003's 96 rows, so dev at step 0 and 20 compares with the v2
+# and partial runs' (0.316 at step 0). Applied to the dev split only (arggym_verl.data).
+dev_levels: [1, 2, 3, 4, 5, 6, 7, 8]
+
+# Training draws only from these cells, 82 of the 144 (8,200 of the 14,400 pool rows;
+# rl.pool.restrict). Rule (arggym_verl/prior.py): a cell is in when its paid rate
+# q = p + (1 - p) * 0.3 * near is within [0.15, 0.85], or [0.12, 0.85] on a partial
+# task (reward.partial_tasks), whose all-fail groups still differ in reward. p is the
+# exact success rate, a truncation counting as a failure; near is the mean of
+# max(0, (s - b) / (1 - b)) over wrong answers, s the partial score and b the cell's
+# floor, 0 outside the partial tasks. Evidence, no test-set eval of a trained
+# checkpoint included: on L1-8, 003's pooled counts (arggym-003.yaml) plus the v2
+# (steps 1-20) and partial (steps 1-34) runs' training groups and their step-20 dev,
+# 8 samples a row; on L9-12, the base model's eval on taskset-lite alone, 8 samples a
+# cell. `python -m arggym_verl.prior build` prints the table; its inputs are in
+# data/arggym-prior/sources/. Pooled successes / samples per cell, and q on the
+# partial tasks:
+train_cells:
+  # attack: in L1 186/382, L2 176/366, L3 81/238, L4 10/48, L5 123/358, L8 16/46,
+  #   L11 2/8; out L6 10/72, L7 5/56, L9 0/8, L10 0/8, L12 1/8
+  attack: [1, 2, 3, 4, 5, 8, 11]
+  # attack_defense: in L1 112/414, L2 180/504, L3 119/376, L4 111/376, L5 60/270,
+  #   L9 2/8; out L6 2/24, L7 5/46, L8 9/64, L10 1/8, L11 1/8, L12 1/8
+  attack_defense: [1, 2, 3, 4, 5, 9]
+  # claim_chain: in L4 231/448, L5 233/488, L6 104/280, L7 208/534, L8 34/192,
+  #   L10 4/8; out L1 28/30, L2 29/30, L3 73/80, L9 1/8, L11 1/8, L12 1/8
+  claim_chain: [4, 5, 6, 7, 8, 10]
+  # counter_argument: in L1 87/248, L2 57/232, L3 187/464, L4 179/488, L5 76/310,
+  #   L7 39/176, L8 70/248; out L6 7/56, L9 0/8, L10 1/8, L11 1/8, L12 0/8
+  counter_argument: [1, 2, 3, 4, 5, 7, 8]
+  # counter_argument_strict: in L1 164/336, L2 124/296, L3 129/264, L4 190/424,
+  #   L5 167/448, L6 45/238, L7 82/320, L8 23/136; out L9 0/8, L10 0/8, L11 0/8,
+  #   L12 0/8
+  counter_argument_strict: [1, 2, 3, 4, 5, 6, 7, 8]
+  # defeat_diagnosis: in L2 53/78 q 0.76, L4 211/432 q 0.60, L5 0/24 q 0.15,
+  #   L6 0/30 q 0.16, L7 0/32 q 0.13, L12 1/8 q 0.20; out L1 23/24 q 0.97,
+  #   L3 44/48 q 0.93, L8 0/40 q 0.11, L9 0/8 q 0.07, L10 0/8 q 0.06, L11 0/8 q 0.08
+  defeat_diagnosis: [2, 4, 5, 6, 7, 12]
+  # defence: in L1 186/416, L2 186/416, L4 167/304, L5 300/590, L6 11/70, L7 18/110,
+  #   L8 221/472, L10 4/8; out L3 5/46, L9 1/8, L11 1/8, L12 1/8
+  defence: [1, 2, 4, 5, 6, 7, 8, 10]
+  # formalization: in L1 236/288 q 0.84, L2 25/134 q 0.28, L3 5/72 q 0.19,
+  #   L7 4/32 q 0.15; out L4 0/46 q 0.06, L5 1/38 q 0.10, L6 1/40 q 0.08,
+  #   L8 0/40 q 0.03, L9 0/8 q 0.02, L10 0/8 q 0.00, L11 0/8 q 0.00, L12 0/8 q 0.00
+  formalization: [1, 2, 3, 7]
+  # perturbation: in L1 96/398 q 0.27, L2 4/40 q 0.23, L3 2/32 q 0.18, L4 3/48 q 0.16;
+  #   out L5 0/40 q 0.05, L6 0/54 q 0.03, L7 0/38 q 0.04, L8 0/40 q 0.06,
+  #   L9 0/8 q 0.02, L10 0/8 q 0.00, L11 0/8 q 0.01, L12 0/8 q 0.00
+  perturbation: [1, 2, 3, 4]
+  # preference_construction: in L1 250/440, L2 90/144, L3 74/208, L4 142/486,
+  #   L5 245/360, L6 219/400, L8 210/560, L9 3/8, L10 4/8, L11 2/8, L12 3/8; out
+  #   L7 20/166
+  preference_construction: [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12]
+  # semantics_query: in L1 305/528, L2 157/406, L3 14/48; out L4 3/40, L5 3/64,
+  #   L6 0/24, L7 0/62, L8 2/46, L9 0/8, L10 0/8, L11 0/8, L12 0/8
+  semantics_query: [1, 2, 3]
+  # status_query: in L1 253/336 q 0.79, L2 297/432 q 0.74, L3 222/584 q 0.52,
+  #   L4 69/232 q 0.44, L5 48/286 q 0.32, L6 3/48 q 0.26, L7 2/48 q 0.22,
+  #   L8 11/62 q 0.33, L9 1/8 q 0.32, L10 0/8 q 0.17, L11 1/8 q 0.19, L12 0/8 q 0.18
+  status_query: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]

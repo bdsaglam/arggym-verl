@@ -1,0 +1,1457 @@
+{
+ "source": "python -m arggym_verl.prior build: the paid rate q = p + (1 - p) * w * near per (task, level) (arggym_verl/prior.py). L1-8 from arggym_verl/tasks/arggym-003.yaml's pooled counts and data/arggym-prior/sources/qwen3.5-4b-v2-partial-observed.json; L9-12 from data/arggym-prior/sources/hf-qwen3.5-4b__xml_tags__cot.metrics.json alone, the base model's eval on taskset-lite. No test-set eval of a trained checkpoint enters. n_scored is 16 on L1-8 and the base eval's 8 on L9-12.",
+ "partial_tasks": [
+  "defeat_diagnosis",
+  "formalization",
+  "perturbation",
+  "status_query"
+ ],
+ "partial_weight": 0.3,
+ "band": [
+  0.15,
+  0.85
+ ],
+ "near_low": 0.12,
+ "by_task_level": {
+  "attack|L1": {
+   "n_scored": 16,
+   "success_rate": 0.4869109947643979,
+   "p": 0.4869109947643979,
+   "near": 0.0,
+   "successes": 186,
+   "samples": 382,
+   "train": true,
+   "evidence": "003 8/14, arggym-qwen3.5-4b-v2 train steps 1-20 49/128, arggym-qwen3.5-4b-v2 dev step 20 5/8, arggym-qwen3.5-4b-partial train steps 1-34 119/224, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "attack|L2": {
+   "n_scored": 16,
+   "success_rate": 0.4808743169398907,
+   "p": 0.4808743169398907,
+   "near": 0.0,
+   "successes": 176,
+   "samples": 366,
+   "train": true,
+   "evidence": "003 21/46, arggym-qwen3.5-4b-v2 train steps 1-20 51/112, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial train steps 1-34 97/192, arggym-qwen3.5-4b-partial dev step 20 3/8"
+  },
+  "attack|L3": {
+   "n_scored": 16,
+   "success_rate": 0.3403361344537815,
+   "p": 0.3403361344537815,
+   "near": 0.0,
+   "successes": 81,
+   "samples": 238,
+   "train": true,
+   "evidence": "003 15/46, arggym-qwen3.5-4b-v2 train steps 1-20 19/80, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 37/96, arggym-qwen3.5-4b-partial dev step 20 4/8"
+  },
+  "attack|L4": {
+   "n_scored": 16,
+   "success_rate": 0.20833333333333334,
+   "p": 0.20833333333333334,
+   "near": 0.0,
+   "successes": 10,
+   "samples": 48,
+   "train": true,
+   "evidence": "003 3/32, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial dev step 20 3/8"
+  },
+  "attack|L5": {
+   "n_scored": 16,
+   "success_rate": 0.3435754189944134,
+   "p": 0.3435754189944134,
+   "near": 0.0,
+   "successes": 123,
+   "samples": 358,
+   "train": true,
+   "evidence": "003 13/70, arggym-qwen3.5-4b-v2 train steps 1-20 53/160, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial train steps 1-34 50/112, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "attack|L6": {
+   "n_scored": 16,
+   "success_rate": 0.1388888888888889,
+   "p": 0.1388888888888889,
+   "near": 0.0,
+   "successes": 10,
+   "samples": 72,
+   "train": false,
+   "evidence": "003 5/56, arggym-qwen3.5-4b-v2 dev step 20 3/8, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "attack|L7": {
+   "n_scored": 16,
+   "success_rate": 0.08928571428571429,
+   "p": 0.08928571428571429,
+   "near": 0.0,
+   "successes": 5,
+   "samples": 56,
+   "train": false,
+   "evidence": "003 4/40, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "attack|L8": {
+   "n_scored": 16,
+   "success_rate": 0.34782608695652173,
+   "p": 0.34782608695652173,
+   "near": 0.0,
+   "successes": 16,
+   "samples": 46,
+   "train": true,
+   "evidence": "003 6/30, arggym-qwen3.5-4b-v2 dev step 20 5/8, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "attack|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "attack|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "attack|L11": {
+   "n_scored": 8,
+   "success_rate": 0.25,
+   "p": 0.25,
+   "near": 0.0,
+   "successes": 2,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 2/8"
+  },
+  "attack|L12": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "attack_defense|L1": {
+   "n_scored": 16,
+   "success_rate": 0.27053140096618356,
+   "p": 0.27053140096618356,
+   "near": 0.0,
+   "successes": 112,
+   "samples": 414,
+   "train": true,
+   "evidence": "003 14/46, arggym-qwen3.5-4b-v2 train steps 1-20 50/192, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 35/160, arggym-qwen3.5-4b-partial dev step 20 7/8"
+  },
+  "attack_defense|L2": {
+   "n_scored": 16,
+   "success_rate": 0.35714285714285715,
+   "p": 0.35714285714285715,
+   "near": 0.0,
+   "successes": 180,
+   "samples": 504,
+   "train": true,
+   "evidence": "003 6/24, arggym-qwen3.5-4b-v2 train steps 1-20 38/96, arggym-qwen3.5-4b-v2 dev step 20 3/8, arggym-qwen3.5-4b-partial train steps 1-34 133/368, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "attack_defense|L3": {
+   "n_scored": 16,
+   "success_rate": 0.31648936170212766,
+   "p": 0.31648936170212766,
+   "near": 0.0,
+   "successes": 119,
+   "samples": 376,
+   "train": true,
+   "evidence": "003 25/104, arggym-qwen3.5-4b-v2 train steps 1-20 22/96, arggym-qwen3.5-4b-v2 dev step 20 1/8, arggym-qwen3.5-4b-partial train steps 1-34 70/160, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "attack_defense|L4": {
+   "n_scored": 16,
+   "success_rate": 0.29521276595744683,
+   "p": 0.29521276595744683,
+   "near": 0.0,
+   "successes": 111,
+   "samples": 376,
+   "train": true,
+   "evidence": "003 10/40, arggym-qwen3.5-4b-v2 train steps 1-20 29/128, arggym-qwen3.5-4b-v2 dev step 20 7/8, arggym-qwen3.5-4b-partial train steps 1-34 60/192, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "attack_defense|L5": {
+   "n_scored": 16,
+   "success_rate": 0.2222222222222222,
+   "p": 0.2222222222222222,
+   "near": 0.0,
+   "successes": 60,
+   "samples": 270,
+   "train": true,
+   "evidence": "003 13/46, arggym-qwen3.5-4b-v2 train steps 1-20 14/80, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 22/128, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "attack_defense|L6": {
+   "n_scored": 16,
+   "success_rate": 0.08333333333333333,
+   "p": 0.08333333333333333,
+   "near": 0.0,
+   "successes": 2,
+   "samples": 24,
+   "train": false,
+   "evidence": "003 0/8, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "attack_defense|L7": {
+   "n_scored": 16,
+   "success_rate": 0.10869565217391304,
+   "p": 0.10869565217391304,
+   "near": 0.0,
+   "successes": 5,
+   "samples": 46,
+   "train": false,
+   "evidence": "003 4/30, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "attack_defense|L8": {
+   "n_scored": 16,
+   "success_rate": 0.140625,
+   "p": 0.140625,
+   "near": 0.0,
+   "successes": 9,
+   "samples": 64,
+   "train": false,
+   "evidence": "003 3/48, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "attack_defense|L9": {
+   "n_scored": 8,
+   "success_rate": 0.25,
+   "p": 0.25,
+   "near": 0.0,
+   "successes": 2,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 2/8"
+  },
+  "attack_defense|L10": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "attack_defense|L11": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "attack_defense|L12": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "claim_chain|L1": {
+   "n_scored": 16,
+   "success_rate": 0.9333333333333333,
+   "p": 0.9333333333333333,
+   "near": 0.0,
+   "successes": 28,
+   "samples": 30,
+   "train": false,
+   "evidence": "003 12/14, arggym-qwen3.5-4b-v2 dev step 20 8/8, arggym-qwen3.5-4b-partial dev step 20 8/8"
+  },
+  "claim_chain|L2": {
+   "n_scored": 16,
+   "success_rate": 0.9666666666666667,
+   "p": 0.9666666666666667,
+   "near": 0.0,
+   "successes": 29,
+   "samples": 30,
+   "train": false,
+   "evidence": "003 14/14, arggym-qwen3.5-4b-v2 dev step 20 8/8, arggym-qwen3.5-4b-partial dev step 20 7/8"
+  },
+  "claim_chain|L3": {
+   "n_scored": 16,
+   "success_rate": 0.9125,
+   "p": 0.9125,
+   "near": 0.0,
+   "successes": 73,
+   "samples": 80,
+   "train": false,
+   "evidence": "003 59/64, arggym-qwen3.5-4b-v2 dev step 20 7/8, arggym-qwen3.5-4b-partial dev step 20 7/8"
+  },
+  "claim_chain|L4": {
+   "n_scored": 16,
+   "success_rate": 0.515625,
+   "p": 0.515625,
+   "near": 0.0,
+   "successes": 231,
+   "samples": 448,
+   "train": true,
+   "evidence": "003 36/64, arggym-qwen3.5-4b-v2 train steps 1-20 68/128, arggym-qwen3.5-4b-v2 dev step 20 3/8, arggym-qwen3.5-4b-partial train steps 1-34 124/240, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "claim_chain|L5": {
+   "n_scored": 16,
+   "success_rate": 0.4774590163934426,
+   "p": 0.4774590163934426,
+   "near": 0.0,
+   "successes": 233,
+   "samples": 488,
+   "train": true,
+   "evidence": "003 25/56, arggym-qwen3.5-4b-v2 train steps 1-20 46/128, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 152/288, arggym-qwen3.5-4b-partial dev step 20 4/8"
+  },
+  "claim_chain|L6": {
+   "n_scored": 16,
+   "success_rate": 0.37142857142857144,
+   "p": 0.37142857142857144,
+   "near": 0.0,
+   "successes": 104,
+   "samples": 280,
+   "train": true,
+   "evidence": "003 5/24, arggym-qwen3.5-4b-v2 train steps 1-20 20/64, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial train steps 1-34 74/176, arggym-qwen3.5-4b-partial dev step 20 3/8"
+  },
+  "claim_chain|L7": {
+   "n_scored": 16,
+   "success_rate": 0.3895131086142322,
+   "p": 0.3895131086142322,
+   "near": 0.0,
+   "successes": 208,
+   "samples": 534,
+   "train": true,
+   "evidence": "003 31/86, arggym-qwen3.5-4b-v2 train steps 1-20 72/192, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 93/240, arggym-qwen3.5-4b-partial dev step 20 6/8"
+  },
+  "claim_chain|L8": {
+   "n_scored": 16,
+   "success_rate": 0.17708333333333334,
+   "p": 0.17708333333333334,
+   "near": 0.0,
+   "successes": 34,
+   "samples": 192,
+   "train": true,
+   "evidence": "003 12/48, arggym-qwen3.5-4b-v2 train steps 1-20 7/64, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial train steps 1-34 13/64, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "claim_chain|L9": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "claim_chain|L10": {
+   "n_scored": 8,
+   "success_rate": 0.5,
+   "p": 0.5,
+   "near": 0.0,
+   "successes": 4,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 4/8"
+  },
+  "claim_chain|L11": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "claim_chain|L12": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "counter_argument|L1": {
+   "n_scored": 16,
+   "success_rate": 0.35080645161290325,
+   "p": 0.35080645161290325,
+   "near": 0.0,
+   "successes": 87,
+   "samples": 248,
+   "train": true,
+   "evidence": "003 12/24, arggym-qwen3.5-4b-v2 train steps 1-20 2/32, arggym-qwen3.5-4b-v2 dev step 20 3/8, arggym-qwen3.5-4b-partial train steps 1-34 65/176, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "counter_argument|L2": {
+   "n_scored": 16,
+   "success_rate": 0.24568965517241378,
+   "p": 0.24568965517241378,
+   "near": 0.0,
+   "successes": 57,
+   "samples": 232,
+   "train": true,
+   "evidence": "003 10/40, arggym-qwen3.5-4b-v2 train steps 1-20 10/48, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial train steps 1-34 26/128, arggym-qwen3.5-4b-partial dev step 20 7/8"
+  },
+  "counter_argument|L3": {
+   "n_scored": 16,
+   "success_rate": 0.40301724137931033,
+   "p": 0.40301724137931033,
+   "near": 0.0,
+   "successes": 187,
+   "samples": 464,
+   "train": true,
+   "evidence": "003 5/32, arggym-qwen3.5-4b-v2 train steps 1-20 87/240, arggym-qwen3.5-4b-v2 dev step 20 3/8, arggym-qwen3.5-4b-partial train steps 1-34 91/176, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "counter_argument|L4": {
+   "n_scored": 16,
+   "success_rate": 0.3668032786885246,
+   "p": 0.3668032786885246,
+   "near": 0.0,
+   "successes": 179,
+   "samples": 488,
+   "train": true,
+   "evidence": "003 20/56, arggym-qwen3.5-4b-v2 train steps 1-20 25/96, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 122/320, arggym-qwen3.5-4b-partial dev step 20 6/8"
+  },
+  "counter_argument|L5": {
+   "n_scored": 16,
+   "success_rate": 0.24516129032258063,
+   "p": 0.24516129032258063,
+   "near": 0.0,
+   "successes": 76,
+   "samples": 310,
+   "train": true,
+   "evidence": "003 19/70, arggym-qwen3.5-4b-v2 train steps 1-20 4/48, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial train steps 1-34 44/176, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "counter_argument|L6": {
+   "n_scored": 16,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 7,
+   "samples": 56,
+   "train": false,
+   "evidence": "003 5/40, arggym-qwen3.5-4b-v2 dev step 20 1/8, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "counter_argument|L7": {
+   "n_scored": 16,
+   "success_rate": 0.2215909090909091,
+   "p": 0.2215909090909091,
+   "near": 0.0,
+   "successes": 39,
+   "samples": 176,
+   "train": true,
+   "evidence": "003 6/32, arggym-qwen3.5-4b-v2 train steps 1-20 12/48, arggym-qwen3.5-4b-v2 dev step 20 1/8, arggym-qwen3.5-4b-partial train steps 1-34 18/80, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "counter_argument|L8": {
+   "n_scored": 16,
+   "success_rate": 0.28225806451612906,
+   "p": 0.28225806451612906,
+   "near": 0.0,
+   "successes": 70,
+   "samples": 248,
+   "train": true,
+   "evidence": "003 5/24, arggym-qwen3.5-4b-v2 train steps 1-20 21/96, arggym-qwen3.5-4b-v2 dev step 20 5/8, arggym-qwen3.5-4b-partial train steps 1-34 35/112, arggym-qwen3.5-4b-partial dev step 20 4/8"
+  },
+  "counter_argument|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "counter_argument|L10": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "counter_argument|L11": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "counter_argument|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "counter_argument_strict|L1": {
+   "n_scored": 16,
+   "success_rate": 0.4880952380952381,
+   "p": 0.4880952380952381,
+   "near": 0.0,
+   "successes": 164,
+   "samples": 336,
+   "train": true,
+   "evidence": "003 24/48, arggym-qwen3.5-4b-v2 train steps 1-20 37/80, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial train steps 1-34 94/192, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "counter_argument_strict|L2": {
+   "n_scored": 16,
+   "success_rate": 0.4189189189189189,
+   "p": 0.4189189189189189,
+   "near": 0.0,
+   "successes": 124,
+   "samples": 296,
+   "train": true,
+   "evidence": "003 27/88, arggym-qwen3.5-4b-v2 train steps 1-20 36/80, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial train steps 1-34 55/112, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "counter_argument_strict|L3": {
+   "n_scored": 16,
+   "success_rate": 0.48863636363636365,
+   "p": 0.48863636363636365,
+   "near": 0.0,
+   "successes": 129,
+   "samples": 264,
+   "train": true,
+   "evidence": "003 16/40, arggym-qwen3.5-4b-v2 train steps 1-20 30/64, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial train steps 1-34 79/144, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "counter_argument_strict|L4": {
+   "n_scored": 16,
+   "success_rate": 0.4481132075471698,
+   "p": 0.4481132075471698,
+   "near": 0.0,
+   "successes": 190,
+   "samples": 424,
+   "train": true,
+   "evidence": "003 25/56, arggym-qwen3.5-4b-v2 train steps 1-20 72/176, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 80/176, arggym-qwen3.5-4b-partial dev step 20 7/8"
+  },
+  "counter_argument_strict|L5": {
+   "n_scored": 16,
+   "success_rate": 0.37276785714285715,
+   "p": 0.37276785714285715,
+   "near": 0.0,
+   "successes": 167,
+   "samples": 448,
+   "train": true,
+   "evidence": "003 7/32, arggym-qwen3.5-4b-v2 train steps 1-20 28/80, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial train steps 1-34 124/320, arggym-qwen3.5-4b-partial dev step 20 4/8"
+  },
+  "counter_argument_strict|L6": {
+   "n_scored": 16,
+   "success_rate": 0.18907563025210083,
+   "p": 0.18907563025210083,
+   "near": 0.0,
+   "successes": 45,
+   "samples": 238,
+   "train": true,
+   "evidence": "003 8/46, arggym-qwen3.5-4b-v2 train steps 1-20 8/48, arggym-qwen3.5-4b-v2 dev step 20 3/8, arggym-qwen3.5-4b-partial train steps 1-34 24/128, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "counter_argument_strict|L7": {
+   "n_scored": 16,
+   "success_rate": 0.25625,
+   "p": 0.25625,
+   "near": 0.0,
+   "successes": 82,
+   "samples": 320,
+   "train": true,
+   "evidence": "003 12/48, arggym-qwen3.5-4b-v2 train steps 1-20 33/128, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial train steps 1-34 30/128, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "counter_argument_strict|L8": {
+   "n_scored": 16,
+   "success_rate": 0.16911764705882354,
+   "p": 0.16911764705882354,
+   "near": 0.0,
+   "successes": 23,
+   "samples": 136,
+   "train": true,
+   "evidence": "003 5/24, arggym-qwen3.5-4b-v2 train steps 1-20 13/64, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial train steps 1-34 0/32, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "counter_argument_strict|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "counter_argument_strict|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "counter_argument_strict|L11": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "counter_argument_strict|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "defeat_diagnosis|L1": {
+   "n_scored": 16,
+   "success_rate": 0.9686691800007674,
+   "p": 0.9583333333333334,
+   "near": 0.8268677333947274,
+   "successes": 23,
+   "samples": 24,
+   "train": false,
+   "evidence": "003 7/8, arggym-qwen3.5-4b-v2 dev step 20 8/8, arggym-qwen3.5-4b-partial dev step 20 8/8"
+  },
+  "defeat_diagnosis|L2": {
+   "n_scored": 16,
+   "success_rate": 0.7566562616922428,
+   "p": 0.6794871794871795,
+   "near": 0.8025584549326579,
+   "successes": 53,
+   "samples": 78,
+   "train": true,
+   "evidence": "003 22/30, arggym-qwen3.5-4b-v2 train steps 1-20 16/16, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial train steps 1-34 15/16, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "defeat_diagnosis|L3": {
+   "n_scored": 16,
+   "success_rate": 0.9273665883341007,
+   "p": 0.9166666666666666,
+   "near": 0.4279968666973637,
+   "successes": 44,
+   "samples": 48,
+   "train": false,
+   "evidence": "003 30/32, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial dev step 20 8/8"
+  },
+  "defeat_diagnosis|L4": {
+   "n_scored": 16,
+   "success_rate": 0.5954700225356215,
+   "p": 0.48842592592592593,
+   "near": 0.6974818964613652,
+   "successes": 211,
+   "samples": 432,
+   "train": true,
+   "evidence": "003 19/32, arggym-qwen3.5-4b-v2 train steps 1-20 92/176, arggym-qwen3.5-4b-v2 dev step 20 4/8, arggym-qwen3.5-4b-partial train steps 1-34 93/208, arggym-qwen3.5-4b-partial dev step 20 3/8"
+  },
+  "defeat_diagnosis|L5": {
+   "n_scored": 16,
+   "success_rate": 0.15005067542229727,
+   "p": 0.0,
+   "near": 0.5001689180743243,
+   "successes": 0,
+   "samples": 24,
+   "train": true,
+   "evidence": "003 0/8, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "defeat_diagnosis|L6": {
+   "n_scored": 16,
+   "success_rate": 0.1574442595439189,
+   "p": 0.0,
+   "near": 0.5248141984797298,
+   "successes": 0,
+   "samples": 30,
+   "train": true,
+   "evidence": "003 0/14, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "defeat_diagnosis|L7": {
+   "n_scored": 16,
+   "success_rate": 0.12988176461148648,
+   "p": 0.0,
+   "near": 0.4329392153716216,
+   "successes": 0,
+   "samples": 32,
+   "train": true,
+   "evidence": "003 0/16, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "defeat_diagnosis|L8": {
+   "n_scored": 16,
+   "success_rate": 0.11046587863175676,
+   "p": 0.0,
+   "near": 0.3682195954391892,
+   "successes": 0,
+   "samples": 40,
+   "train": false,
+   "evidence": "003 0/24, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "defeat_diagnosis|L9": {
+   "n_scored": 8,
+   "success_rate": 0.07365405405405404,
+   "p": 0.0,
+   "near": 0.24551351351351347,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "defeat_diagnosis|L10": {
+   "n_scored": 8,
+   "success_rate": 0.05756756756756756,
+   "p": 0.0,
+   "near": 0.19189189189189187,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "defeat_diagnosis|L11": {
+   "n_scored": 8,
+   "success_rate": 0.07702702702702702,
+   "p": 0.0,
+   "near": 0.25675675675675674,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "defeat_diagnosis|L12": {
+   "n_scored": 8,
+   "success_rate": 0.20224594594594594,
+   "p": 0.125,
+   "near": 0.29427027027027025,
+   "successes": 1,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 1/8"
+  },
+  "defence|L1": {
+   "n_scored": 16,
+   "success_rate": 0.44711538461538464,
+   "p": 0.44711538461538464,
+   "near": 0.0,
+   "successes": 186,
+   "samples": 416,
+   "train": true,
+   "evidence": "003 11/48, arggym-qwen3.5-4b-v2 train steps 1-20 38/96, arggym-qwen3.5-4b-v2 dev step 20 7/8, arggym-qwen3.5-4b-partial train steps 1-34 122/256, arggym-qwen3.5-4b-partial dev step 20 8/8"
+  },
+  "defence|L2": {
+   "n_scored": 16,
+   "success_rate": 0.44711538461538464,
+   "p": 0.44711538461538464,
+   "near": 0.0,
+   "successes": 186,
+   "samples": 416,
+   "train": true,
+   "evidence": "003 18/64, arggym-qwen3.5-4b-v2 train steps 1-20 58/128, arggym-qwen3.5-4b-v2 dev step 20 1/8, arggym-qwen3.5-4b-partial train steps 1-34 108/208, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "defence|L3": {
+   "n_scored": 16,
+   "success_rate": 0.10869565217391304,
+   "p": 0.10869565217391304,
+   "near": 0.0,
+   "successes": 5,
+   "samples": 46,
+   "train": false,
+   "evidence": "003 4/30, arggym-qwen3.5-4b-v2 dev step 20 1/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "defence|L4": {
+   "n_scored": 16,
+   "success_rate": 0.5493421052631579,
+   "p": 0.5493421052631579,
+   "near": 0.0,
+   "successes": 167,
+   "samples": 304,
+   "train": true,
+   "evidence": "003 19/48, arggym-qwen3.5-4b-v2 train steps 1-20 54/80, arggym-qwen3.5-4b-v2 dev step 20 5/8, arggym-qwen3.5-4b-partial train steps 1-34 81/160, arggym-qwen3.5-4b-partial dev step 20 8/8"
+  },
+  "defence|L5": {
+   "n_scored": 16,
+   "success_rate": 0.5084745762711864,
+   "p": 0.5084745762711864,
+   "near": 0.0,
+   "successes": 300,
+   "samples": 590,
+   "train": true,
+   "evidence": "003 42/62, arggym-qwen3.5-4b-v2 train steps 1-20 93/208, arggym-qwen3.5-4b-v2 dev step 20 5/8, arggym-qwen3.5-4b-partial train steps 1-34 153/304, arggym-qwen3.5-4b-partial dev step 20 7/8"
+  },
+  "defence|L6": {
+   "n_scored": 16,
+   "success_rate": 0.15714285714285714,
+   "p": 0.15714285714285714,
+   "near": 0.0,
+   "successes": 11,
+   "samples": 70,
+   "train": true,
+   "evidence": "003 8/54, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "defence|L7": {
+   "n_scored": 16,
+   "success_rate": 0.16363636363636364,
+   "p": 0.16363636363636364,
+   "near": 0.0,
+   "successes": 18,
+   "samples": 110,
+   "train": true,
+   "evidence": "003 16/46, arggym-qwen3.5-4b-v2 train steps 1-20 0/16, arggym-qwen3.5-4b-v2 dev step 20 1/8, arggym-qwen3.5-4b-partial train steps 1-34 0/32, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "defence|L8": {
+   "n_scored": 16,
+   "success_rate": 0.4682203389830508,
+   "p": 0.4682203389830508,
+   "near": 0.0,
+   "successes": 221,
+   "samples": 472,
+   "train": true,
+   "evidence": "003 18/56, arggym-qwen3.5-4b-v2 train steps 1-20 68/144, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 123/256, arggym-qwen3.5-4b-partial dev step 20 6/8"
+  },
+  "defence|L9": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "defence|L10": {
+   "n_scored": 8,
+   "success_rate": 0.5,
+   "p": 0.5,
+   "near": 0.0,
+   "successes": 4,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 4/8"
+  },
+  "defence|L11": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "defence|L12": {
+   "n_scored": 8,
+   "success_rate": 0.125,
+   "p": 0.125,
+   "near": 0.0,
+   "successes": 1,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 1/8"
+  },
+  "formalization|L1": {
+   "n_scored": 16,
+   "success_rate": 0.8424344366293716,
+   "p": 0.8194444444444444,
+   "near": 0.42443062495250117,
+   "successes": 236,
+   "samples": 288,
+   "train": true,
+   "evidence": "003 26/32, arggym-qwen3.5-4b-v2 train steps 1-20 64/80, arggym-qwen3.5-4b-v2 dev step 20 8/8, arggym-qwen3.5-4b-partial train steps 1-34 131/160, arggym-qwen3.5-4b-partial dev step 20 7/8"
+  },
+  "formalization|L2": {
+   "n_scored": 16,
+   "success_rate": 0.2784681236626341,
+   "p": 0.1865671641791045,
+   "near": 0.37659720399978514,
+   "successes": 25,
+   "samples": 134,
+   "train": true,
+   "evidence": "003 8/38, arggym-qwen3.5-4b-v2 train steps 1-20 0/16, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial train steps 1-34 15/64, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "formalization|L3": {
+   "n_scored": 16,
+   "success_rate": 0.19139131532112352,
+   "p": 0.06944444444444445,
+   "near": 0.4368246120955668,
+   "successes": 5,
+   "samples": 72,
+   "train": true,
+   "evidence": "003 4/24, arggym-qwen3.5-4b-v2 train steps 1-20 0/16, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial train steps 1-34 0/16, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "formalization|L4": {
+   "n_scored": 16,
+   "success_rate": 0.057882946874999994,
+   "p": 0.0,
+   "near": 0.19294315625,
+   "successes": 0,
+   "samples": 46,
+   "train": false,
+   "evidence": "003 0/30, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "formalization|L5": {
+   "n_scored": 16,
+   "success_rate": 0.09905019610221547,
+   "p": 0.02631578947368421,
+   "near": 0.2490006713409178,
+   "successes": 1,
+   "samples": 38,
+   "train": false,
+   "evidence": "003 0/22, arggym-qwen3.5-4b-v2 dev step 20 1/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "formalization|L6": {
+   "n_scored": 16,
+   "success_rate": 0.07757875796875,
+   "p": 0.025,
+   "near": 0.1797564375,
+   "successes": 1,
+   "samples": 40,
+   "train": false,
+   "evidence": "003 1/24, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "formalization|L7": {
+   "n_scored": 16,
+   "success_rate": 0.1462940546875,
+   "p": 0.125,
+   "near": 0.08112020833333333,
+   "successes": 4,
+   "samples": 32,
+   "train": true,
+   "evidence": "003 0/16, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "formalization|L8": {
+   "n_scored": 16,
+   "success_rate": 0.03291882028723099,
+   "p": 0.0,
+   "near": 0.10972940095743665,
+   "successes": 0,
+   "samples": 40,
+   "train": false,
+   "evidence": "003 0/24, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "formalization|L9": {
+   "n_scored": 8,
+   "success_rate": 0.021790540540540543,
+   "p": 0.0,
+   "near": 0.07263513513513514,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "formalization|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "formalization|L11": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "formalization|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "perturbation|L1": {
+   "n_scored": 16,
+   "success_rate": 0.2726042134412413,
+   "p": 0.24120603015075376,
+   "near": 0.13793020915688775,
+   "successes": 96,
+   "samples": 398,
+   "train": true,
+   "evidence": "003 13/78, arggym-qwen3.5-4b-v2 train steps 1-20 45/176, arggym-qwen3.5-4b-v2 dev step 20 3/8, arggym-qwen3.5-4b-partial train steps 1-34 34/128, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "perturbation|L2": {
+   "n_scored": 16,
+   "success_rate": 0.23151751279381635,
+   "p": 0.1,
+   "near": 0.48710189923635683,
+   "successes": 4,
+   "samples": 40,
+   "train": true,
+   "evidence": "003 1/24, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "perturbation|L3": {
+   "n_scored": 16,
+   "success_rate": 0.184142733817017,
+   "p": 0.0625,
+   "near": 0.4325074980160605,
+   "successes": 2,
+   "samples": 32,
+   "train": true,
+   "evidence": "003 1/16, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "perturbation|L4": {
+   "n_scored": 16,
+   "success_rate": 0.16128168544914792,
+   "p": 0.0625,
+   "near": 0.3512237704858593,
+   "successes": 3,
+   "samples": 48,
+   "train": true,
+   "evidence": "003 1/32, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "perturbation|L5": {
+   "n_scored": 16,
+   "success_rate": 0.052488834375,
+   "p": 0.0,
+   "near": 0.17496278125,
+   "successes": 0,
+   "samples": 40,
+   "train": false,
+   "evidence": "003 0/24, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "perturbation|L6": {
+   "n_scored": 16,
+   "success_rate": 0.0270890625,
+   "p": 0.0,
+   "near": 0.090296875,
+   "successes": 0,
+   "samples": 54,
+   "train": false,
+   "evidence": "003 0/38, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "perturbation|L7": {
+   "n_scored": 16,
+   "success_rate": 0.03841171875,
+   "p": 0.0,
+   "near": 0.1280390625,
+   "successes": 0,
+   "samples": 38,
+   "train": false,
+   "evidence": "003 0/22, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "perturbation|L8": {
+   "n_scored": 16,
+   "success_rate": 0.0645169842032967,
+   "p": 0.0,
+   "near": 0.21505661401098902,
+   "successes": 0,
+   "samples": 40,
+   "train": false,
+   "evidence": "003 0/24, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "perturbation|L9": {
+   "n_scored": 8,
+   "success_rate": 0.020329670329670327,
+   "p": 0.0,
+   "near": 0.06776556776556776,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "perturbation|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "perturbation|L11": {
+   "n_scored": 8,
+   "success_rate": 0.00575922714887293,
+   "p": 0.0,
+   "near": 0.019197423829576434,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "perturbation|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "preference_construction|L1": {
+   "n_scored": 16,
+   "success_rate": 0.5681818181818182,
+   "p": 0.5681818181818182,
+   "near": 0.0,
+   "successes": 250,
+   "samples": 440,
+   "train": true,
+   "evidence": "003 44/56, arggym-qwen3.5-4b-v2 train steps 1-20 48/80, arggym-qwen3.5-4b-v2 dev step 20 8/8, arggym-qwen3.5-4b-partial train steps 1-34 142/288, arggym-qwen3.5-4b-partial dev step 20 8/8"
+  },
+  "preference_construction|L2": {
+   "n_scored": 16,
+   "success_rate": 0.625,
+   "p": 0.625,
+   "near": 0.0,
+   "successes": 90,
+   "samples": 144,
+   "train": true,
+   "evidence": "003 11/48, arggym-qwen3.5-4b-v2 train steps 1-20 32/32, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial train steps 1-34 47/48, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "preference_construction|L3": {
+   "n_scored": 16,
+   "success_rate": 0.3557692307692308,
+   "p": 0.3557692307692308,
+   "near": 0.0,
+   "successes": 74,
+   "samples": 208,
+   "train": true,
+   "evidence": "003 27/64, arggym-qwen3.5-4b-v2 train steps 1-20 47/96, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial train steps 1-34 0/32, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "preference_construction|L4": {
+   "n_scored": 16,
+   "success_rate": 0.29218106995884774,
+   "p": 0.29218106995884774,
+   "near": 0.0,
+   "successes": 142,
+   "samples": 486,
+   "train": true,
+   "evidence": "003 47/86, arggym-qwen3.5-4b-v2 train steps 1-20 41/176, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 41/208, arggym-qwen3.5-4b-partial dev step 20 7/8"
+  },
+  "preference_construction|L5": {
+   "n_scored": 16,
+   "success_rate": 0.6805555555555556,
+   "p": 0.6805555555555556,
+   "near": 0.0,
+   "successes": 245,
+   "samples": 360,
+   "train": true,
+   "evidence": "003 12/40, arggym-qwen3.5-4b-v2 train steps 1-20 80/112, arggym-qwen3.5-4b-v2 dev step 20 8/8, arggym-qwen3.5-4b-partial train steps 1-34 137/192, arggym-qwen3.5-4b-partial dev step 20 8/8"
+  },
+  "preference_construction|L6": {
+   "n_scored": 16,
+   "success_rate": 0.5475,
+   "p": 0.5475,
+   "near": 0.0,
+   "successes": 219,
+   "samples": 400,
+   "train": true,
+   "evidence": "003 42/64, arggym-qwen3.5-4b-v2 train steps 1-20 46/48, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial train steps 1-34 131/272, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "preference_construction|L7": {
+   "n_scored": 16,
+   "success_rate": 0.12048192771084337,
+   "p": 0.12048192771084337,
+   "near": 0.0,
+   "successes": 20,
+   "samples": 166,
+   "train": false,
+   "evidence": "003 20/54, arggym-qwen3.5-4b-v2 train steps 1-20 0/48, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial train steps 1-34 0/48, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "preference_construction|L8": {
+   "n_scored": 16,
+   "success_rate": 0.375,
+   "p": 0.375,
+   "near": 0.0,
+   "successes": 210,
+   "samples": 560,
+   "train": true,
+   "evidence": "003 41/80, arggym-qwen3.5-4b-v2 train steps 1-20 74/208, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 83/256, arggym-qwen3.5-4b-partial dev step 20 6/8"
+  },
+  "preference_construction|L9": {
+   "n_scored": 8,
+   "success_rate": 0.375,
+   "p": 0.375,
+   "near": 0.0,
+   "successes": 3,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 3/8"
+  },
+  "preference_construction|L10": {
+   "n_scored": 8,
+   "success_rate": 0.5,
+   "p": 0.5,
+   "near": 0.0,
+   "successes": 4,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 4/8"
+  },
+  "preference_construction|L11": {
+   "n_scored": 8,
+   "success_rate": 0.25,
+   "p": 0.25,
+   "near": 0.0,
+   "successes": 2,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 2/8"
+  },
+  "preference_construction|L12": {
+   "n_scored": 8,
+   "success_rate": 0.375,
+   "p": 0.375,
+   "near": 0.0,
+   "successes": 3,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 3/8"
+  },
+  "semantics_query|L1": {
+   "n_scored": 16,
+   "success_rate": 0.5776515151515151,
+   "p": 0.5776515151515151,
+   "near": 0.0,
+   "successes": 305,
+   "samples": 528,
+   "train": true,
+   "evidence": "003 10/32, arggym-qwen3.5-4b-v2 train steps 1-20 84/144, arggym-qwen3.5-4b-v2 dev step 20 3/8, arggym-qwen3.5-4b-partial train steps 1-34 206/336, arggym-qwen3.5-4b-partial dev step 20 2/8"
+  },
+  "semantics_query|L2": {
+   "n_scored": 16,
+   "success_rate": 0.3866995073891626,
+   "p": 0.3866995073891626,
+   "near": 0.0,
+   "successes": 157,
+   "samples": 406,
+   "train": true,
+   "evidence": "003 6/38, arggym-qwen3.5-4b-v2 train steps 1-20 37/112, arggym-qwen3.5-4b-v2 dev step 20 1/8, arggym-qwen3.5-4b-partial train steps 1-34 112/240, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "semantics_query|L3": {
+   "n_scored": 16,
+   "success_rate": 0.2916666666666667,
+   "p": 0.2916666666666667,
+   "near": 0.0,
+   "successes": 14,
+   "samples": 48,
+   "train": true,
+   "evidence": "003 4/32, arggym-qwen3.5-4b-v2 dev step 20 5/8, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "semantics_query|L4": {
+   "n_scored": 16,
+   "success_rate": 0.075,
+   "p": 0.075,
+   "near": 0.0,
+   "successes": 3,
+   "samples": 40,
+   "train": false,
+   "evidence": "003 2/24, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "semantics_query|L5": {
+   "n_scored": 16,
+   "success_rate": 0.046875,
+   "p": 0.046875,
+   "near": 0.0,
+   "successes": 3,
+   "samples": 64,
+   "train": false,
+   "evidence": "003 3/48, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "semantics_query|L6": {
+   "n_scored": 16,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 24,
+   "train": false,
+   "evidence": "003 0/8, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "semantics_query|L7": {
+   "n_scored": 16,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 62,
+   "train": false,
+   "evidence": "003 0/46, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "semantics_query|L8": {
+   "n_scored": 16,
+   "success_rate": 0.043478260869565216,
+   "p": 0.043478260869565216,
+   "near": 0.0,
+   "successes": 2,
+   "samples": 46,
+   "train": false,
+   "evidence": "003 1/30, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 1/8"
+  },
+  "semantics_query|L9": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "semantics_query|L10": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "semantics_query|L11": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "semantics_query|L12": {
+   "n_scored": 8,
+   "success_rate": 0.0,
+   "p": 0.0,
+   "near": 0.0,
+   "successes": 0,
+   "samples": 8,
+   "train": false,
+   "evidence": "base 0/8"
+  },
+  "status_query|L1": {
+   "n_scored": 16,
+   "success_rate": 0.7850521485930124,
+   "p": 0.7529761904761905,
+   "near": 0.4328322059137426,
+   "successes": 253,
+   "samples": 336,
+   "train": true,
+   "evidence": "003 27/32, arggym-qwen3.5-4b-v2 train steps 1-20 41/48, arggym-qwen3.5-4b-v2 dev step 20 8/8, arggym-qwen3.5-4b-partial train steps 1-34 169/240, arggym-qwen3.5-4b-partial dev step 20 8/8"
+  },
+  "status_query|L2": {
+   "n_scored": 16,
+   "success_rate": 0.7383156647723518,
+   "p": 0.6875,
+   "near": 0.5420337575717527,
+   "successes": 297,
+   "samples": 432,
+   "train": true,
+   "evidence": "003 35/48, arggym-qwen3.5-4b-v2 train steps 1-20 92/128, arggym-qwen3.5-4b-v2 dev step 20 6/8, arggym-qwen3.5-4b-partial train steps 1-34 158/240, arggym-qwen3.5-4b-partial dev step 20 6/8"
+  },
+  "status_query|L3": {
+   "n_scored": 16,
+   "success_rate": 0.5173255245609668,
+   "p": 0.3801369863013699,
+   "near": 0.737735785852713,
+   "successes": 222,
+   "samples": 584,
+   "train": true,
+   "evidence": "003 22/40, arggym-qwen3.5-4b-v2 train steps 1-20 96/240, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial train steps 1-34 104/288, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "status_query|L4": {
+   "n_scored": 16,
+   "success_rate": 0.4407063096181544,
+   "p": 0.2974137931034483,
+   "near": 0.6798336161842906,
+   "successes": 69,
+   "samples": 232,
+   "train": true,
+   "evidence": "003 19/56, arggym-qwen3.5-4b-v2 train steps 1-20 12/32, arggym-qwen3.5-4b-v2 dev step 20 5/8, arggym-qwen3.5-4b-partial train steps 1-34 27/128, arggym-qwen3.5-4b-partial dev step 20 6/8"
+  },
+  "status_query|L5": {
+   "n_scored": 16,
+   "success_rate": 0.31613064240941147,
+   "p": 0.16783216783216784,
+   "near": 0.5940247020881186,
+   "successes": 48,
+   "samples": 286,
+   "train": true,
+   "evidence": "003 3/14, arggym-qwen3.5-4b-v2 train steps 1-20 17/128, arggym-qwen3.5-4b-v2 dev step 20 3/8, arggym-qwen3.5-4b-partial train steps 1-34 18/128, arggym-qwen3.5-4b-partial dev step 20 7/8"
+  },
+  "status_query|L6": {
+   "n_scored": 16,
+   "success_rate": 0.2594309365234375,
+   "p": 0.0625,
+   "near": 0.7001988854166667,
+   "successes": 3,
+   "samples": 48,
+   "train": true,
+   "evidence": "003 3/32, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "status_query|L7": {
+   "n_scored": 16,
+   "success_rate": 0.2166385758546171,
+   "p": 0.041666666666666664,
+   "near": 0.6085979450015668,
+   "successes": 2,
+   "samples": 48,
+   "train": true,
+   "evidence": "003 2/32, arggym-qwen3.5-4b-v2 dev step 20 0/8, arggym-qwen3.5-4b-partial dev step 20 0/8"
+  },
+  "status_query|L8": {
+   "n_scored": 16,
+   "success_rate": 0.32675824059735503,
+   "p": 0.1774193548387097,
+   "near": 0.6051641122245759,
+   "successes": 11,
+   "samples": 62,
+   "train": true,
+   "evidence": "003 4/46, arggym-qwen3.5-4b-v2 dev step 20 2/8, arggym-qwen3.5-4b-partial dev step 20 5/8"
+  },
+  "status_query|L9": {
+   "n_scored": 8,
+   "success_rate": 0.31548341268622326,
+   "p": 0.125,
+   "near": 0.7256510959475173,
+   "successes": 1,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 1/8"
+  },
+  "status_query|L10": {
+   "n_scored": 8,
+   "success_rate": 0.17203023758099353,
+   "p": 0.0,
+   "near": 0.5734341252699785,
+   "successes": 0,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 0/8"
+  },
+  "status_query|L11": {
+   "n_scored": 8,
+   "success_rate": 0.1895259820600062,
+   "p": 0.125,
+   "near": 0.24581326499049985,
+   "successes": 1,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 1/8"
+  },
+  "status_query|L12": {
+   "n_scored": 8,
+   "success_rate": 0.18,
+   "p": 0.0,
+   "near": 0.6,
+   "successes": 0,
+   "samples": 8,
+   "train": true,
+   "evidence": "base 0/8"
+  }
+ }
+}
