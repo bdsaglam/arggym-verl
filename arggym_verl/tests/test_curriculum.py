@@ -422,3 +422,60 @@ def test_resume_round_trips_fractional_paid_counts():
     resumed.load_state_dict(state)
     assert resumed.counts == first.counts and resumed.weights() == first.weights()
     assert resumed.draw() == first.draw()
+
+
+def test_v3_start_of_run_draw():
+    """The v3 config on its prior over arggym-004's 82 cells: every task gets 1.46-1.71 of the
+    18 prompts a step, formalization and perturbation 0.84 (their best cells start at q 0.28),
+    and the draw's entropy is 4.287 nats at k = 2 (4.330 at k = 1; ln 82 = 4.407).
+    Cell-proportional at k = 2, formalization would get 0.39 and preference_construction 3.03."""
+    import math
+    from collections import defaultdict
+
+    import yaml
+
+    from arggym_verl.curriculum import StepCurriculum, draw_entropy
+    from arggym_verl.vendor.rl_curriculum import base_pass_counts
+    from conftest import ROOT
+
+    v3 = compose_v3()
+    c = v3.data.curriculum
+    train = yaml.safe_load((ROOT / "arggym_verl/tasks/arggym-004.yaml").read_text())["train_cells"]
+    cells = {(t, lv): [i] for i, (t, lv) in enumerate(
+        (t, lv) for t, levels in train.items() for lv in levels)}
+    prior = base_pass_counts(str(ROOT / c.prior))
+
+    def curriculum(**kw):
+        args = dict(prompts_per_step=18, num_generations=1, steps_per_generation=1, seed=0,
+                    half_life=c.half_life, floor=c.floor, margin=c.margin, power=c.power,
+                    task_balanced=c.task_balanced)
+        return StepCurriculum(cells, prior, **{**args, **kw})
+
+    def per_task(cur):
+        out = defaultdict(float)
+        for r in cur.table():
+            out[r["task"]] += 18 * r["draw_share"]
+        return out
+
+    start = curriculum()
+    assert len(cells) == 82 and math.log(82) == pytest.approx(4.407, abs=1e-3)
+    assert draw_entropy(start) == pytest.approx(4.287, abs=1e-3)
+    assert draw_entropy(curriculum(power=1)) == pytest.approx(4.330, abs=1e-3)
+    tasks = per_task(start)
+    assert tasks["formalization"] == pytest.approx(0.84, abs=0.01)
+    assert tasks["perturbation"] == pytest.approx(0.84, abs=0.01)
+    others = [v for t, v in tasks.items() if t not in ("formalization", "perturbation")]
+    assert min(others) == pytest.approx(1.46, abs=0.01) and max(others) == pytest.approx(1.71, abs=0.01)
+    flat = per_task(curriculum(task_balanced=False))
+    assert flat["formalization"] == pytest.approx(0.39, abs=0.01)
+    assert flat["preference_construction"] == pytest.approx(3.03, abs=0.01)
+
+
+def compose_v3():
+    from hydra import compose, initialize_config_dir
+
+    from conftest import ROOT
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        return compose(config_name="arggym-qwen3.5-4b-v3",
+                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])

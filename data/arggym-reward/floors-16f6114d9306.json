@@ -1,0 +1,790 @@
+{
+ "source": "arggym.floors (FLOORS_VERSION 2) on every row of data/arggym-pool/pools/16f6114d9306/train.jsonl, the pool of arggym_verl/tasks/arggym-004.yaml: per (task, level), the best uninformed strategy's mean score, a fitted map fitted per task; `python -m arggym_verl.floors arggym_verl/tasks/arggym-004.yaml --out <this file>`",
+ "arggym_version": "2.0.0",
+ "scoring_version": 6,
+ "floors_version": 2,
+ "by_task_level": {
+  "attack|L1": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L2": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L3": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L4": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L5": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L6": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L7": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L8": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L9": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L10": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L11": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack|L12": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L1": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L2": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L3": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L4": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L5": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L6": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L7": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L8": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L9": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L10": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L11": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "attack_defense|L12": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "claim_chain|L1": {
+   "floor": 0.1833,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L2": {
+   "floor": 0.1835,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L3": {
+   "floor": 0.1838,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L4": {
+   "floor": 0.1577,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L5": {
+   "floor": 0.1425,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L6": {
+   "floor": 0.167,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L7": {
+   "floor": 0.1868,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L8": {
+   "floor": 0.1473,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L9": {
+   "floor": 0.151,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L10": {
+   "floor": 0.1466,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L11": {
+   "floor": 0.1337,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "claim_chain|L12": {
+   "floor": 0.1039,
+   "strategy": "copy_theory",
+   "n": 100
+  },
+  "counter_argument|L1": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L2": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L3": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L4": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L5": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L6": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L7": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L8": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L9": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L10": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L11": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument|L12": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L1": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L2": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L3": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L4": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L5": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L6": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L7": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L8": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L9": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L10": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L11": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "counter_argument_strict|L12": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defeat_diagnosis|L1": {
+   "floor": 0.1275,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L2": {
+   "floor": 0.1335,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L3": {
+   "floor": 0.1245,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L4": {
+   "floor": 0.075,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L5": {
+   "floor": 0.075,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L6": {
+   "floor": 0.075,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L7": {
+   "floor": 0.075,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L8": {
+   "floor": 0.075,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L9": {
+   "floor": 0.075,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L10": {
+   "floor": 0.075,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L11": {
+   "floor": 0.075,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defeat_diagnosis|L12": {
+   "floor": 0.075,
+   "strategy": "status_overruled",
+   "n": 100
+  },
+  "defence|L1": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L2": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L3": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L4": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L5": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L6": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L7": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L8": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L9": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L10": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L11": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "defence|L12": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "formalization|L1": {
+   "floor": 0.301,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L2": {
+   "floor": 0.2158,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L3": {
+   "floor": 0.2023,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L4": {
+   "floor": 0.2037,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L5": {
+   "floor": 0.2121,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L6": {
+   "floor": 0.2179,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L7": {
+   "floor": 0.2375,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L8": {
+   "floor": 0.2297,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L9": {
+   "floor": 0.2294,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L10": {
+   "floor": 0.2296,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L11": {
+   "floor": 0.2249,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "formalization|L12": {
+   "floor": 0.2293,
+   "strategy": "premise_per_ask",
+   "n": 100
+  },
+  "perturbation|L1": {
+   "floor": 0.1259,
+   "strategy": "all_overruled",
+   "n": 100
+  },
+  "perturbation|L2": {
+   "floor": 0.1726,
+   "strategy": "all_overruled",
+   "n": 100
+  },
+  "perturbation|L3": {
+   "floor": 0.1726,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "perturbation|L4": {
+   "floor": 0.21,
+   "strategy": "all_overruled",
+   "n": 100
+  },
+  "perturbation|L5": {
+   "floor": 0.16,
+   "strategy": "all_overruled",
+   "n": 100
+  },
+  "perturbation|L6": {
+   "floor": 0.2,
+   "strategy": "all_undecided",
+   "n": 100
+  },
+  "perturbation|L7": {
+   "floor": 0.2,
+   "strategy": "all_undecided",
+   "n": 100
+  },
+  "perturbation|L8": {
+   "floor": 0.1536,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "perturbation|L9": {
+   "floor": 0.1727,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "perturbation|L10": {
+   "floor": 0.1815,
+   "strategy": "all_overruled",
+   "n": 100
+  },
+  "perturbation|L11": {
+   "floor": 0.1891,
+   "strategy": "all_overruled",
+   "n": 100
+  },
+  "perturbation|L12": {
+   "floor": 0.189,
+   "strategy": "all_undecided",
+   "n": 100
+  },
+  "preference_construction|L1": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L2": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L3": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L4": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L5": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L6": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L7": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L8": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L9": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L10": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L11": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "preference_construction|L12": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 100
+  },
+  "semantics_query|L1": {
+   "floor": 0.7828,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L2": {
+   "floor": 0.776,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L3": {
+   "floor": 0.8117,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L4": {
+   "floor": 0.5774,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L5": {
+   "floor": 0.5675,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L6": {
+   "floor": 0.6575,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L7": {
+   "floor": 0.6492,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L8": {
+   "floor": 0.6375,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L9": {
+   "floor": 0.6567,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L10": {
+   "floor": 0.6283,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L11": {
+   "floor": 0.6383,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "semantics_query|L12": {
+   "floor": 0.6225,
+   "strategy": "per_key_group",
+   "n": 100
+  },
+  "status_query|L1": {
+   "floor": 0.3333,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L2": {
+   "floor": 0.3333,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L3": {
+   "floor": 0.3738,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L4": {
+   "floor": 0.3636,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L5": {
+   "floor": 0.3921,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L6": {
+   "floor": 0.3825,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L7": {
+   "floor": 0.3695,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L8": {
+   "floor": 0.3718,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L9": {
+   "floor": 0.35,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L10": {
+   "floor": 0.3644,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L11": {
+   "floor": 0.3665,
+   "strategy": "all_justified",
+   "n": 100
+  },
+  "status_query|L12": {
+   "floor": 0.3788,
+   "strategy": "all_justified",
+   "n": 100
+  }
+ },
+ "by_task": {
+  "attack": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 1200
+  },
+  "attack_defense": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 1200
+  },
+  "claim_chain": {
+   "floor": 0.1573,
+   "strategy": "copy_theory",
+   "n": 1200
+  },
+  "counter_argument": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 1200
+  },
+  "counter_argument_strict": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 1200
+  },
+  "defeat_diagnosis": {
+   "floor": 0.0884,
+   "strategy": "status_overruled",
+   "n": 1200
+  },
+  "defence": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 1200
+  },
+  "formalization": {
+   "floor": 0.2278,
+   "strategy": "premise_per_ask",
+   "n": 1200
+  },
+  "perturbation": {
+   "floor": 0.1642,
+   "strategy": "all_overruled",
+   "n": 1200
+  },
+  "preference_construction": {
+   "floor": 0.0,
+   "strategy": "empty",
+   "n": 1200
+  },
+  "semantics_query": {
+   "floor": 0.6671,
+   "strategy": "per_key_group",
+   "n": 1200
+  },
+  "status_query": {
+   "floor": 0.365,
+   "strategy": "all_justified",
+   "n": 1200
+  }
+ }
+}

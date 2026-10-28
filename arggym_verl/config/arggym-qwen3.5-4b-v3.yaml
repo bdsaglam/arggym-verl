@@ -1,0 +1,61 @@
+# ArgGYM v3 on Qwen3.5-4B: the v2 recipe (arggym-qwen3.5-4b.yaml) with partial credit
+# on four tasks, training cells up to level 12 chosen by the rate the reward pays,
+# and a curriculum that draws tasks evenly and cells by that rate. Everything not set
+# here is arggym-qwen3.5-4b.yaml's: LoRA r64, LR 1e-5 cosine over 100 steps, the
+# card's sampling, KL logged with coefficient 0, 18 prompts x 16, mini-batch 9,
+# dev every 20 steps on 8 samples a row, a checkpoint every 5, the auto-stop.
+# design.md, "ArgGYM run" and "Curriculum", gives the reasons.
+
+defaults:
+  - arggym-qwen3.5-4b
+  - _self_
+
+data:
+  # `python -m arggym_verl.data arggym_verl/tasks/arggym-004.yaml --out
+  #  data/arggym-qwen3.5-4b-v3` (scripts/arggym/prepare_data.sh): 003's task on levels
+  # 1-12, training restricted to 82 cells (8,200 rows), dev 003's 96 rows (dev_levels).
+  train_files: ${oc.env:ARGGYM_VERL_ROOT}/data/arggym-qwen3.5-4b-v3/train.parquet
+  val_files: ${oc.env:ARGGYM_VERL_ROOT}/data/arggym-qwen3.5-4b-v3/dev.parquet
+  curriculum:
+    # Initial rates: each cell's paid rate q = p + (1 - p) * 0.3 * near, the reward's
+    # expected value, so near-miss cells (p ~ 0, q 0.12-0.3) do not start at the floor.
+    # Written by `python -m arggym_verl.prior build` from 003's pooled counts and the v2
+    # and partial runs' training groups and step-20 dev on L1-8 (16 samples' weight),
+    # and from the base model's eval on L9-12 (8 samples); no test-set eval of a
+    # trained checkpoint. Relative to the repository root; the file says its sources.
+    prior: data/arggym-prior/qwen3.5-4b-pooled-paid.json
+    # The weight normalized, (max(0, q(1 - q) - margin) / (0.25 - margin))^power + floor
+    # (arggym_verl/curriculum.py): 1 + floor at q 0.5. power 2 sharpens it over the
+    # in-band cells (q 0.75 weighs 0.37 of q 0.5, against 0.61 at power 1).
+    power: 2
+    # margin 0.09 stays: cells with q <= 0.1 or q >= 0.9 get the floor alone. The floor
+    # is v2's 0.005 on the normalized scale (0.005 / 0.16 = 0.031), rounded.
+    floor: 0.03
+    # Two-level draw: a task in proportion to its best cell's weight, its cells in
+    # proportion to theirs. Cell-proportional, a task's share grows with its number of
+    # cells in band: on the start-of-run prior, formalization and perturbation (4 cells
+    # each) would get 0.4-0.5 of the 18 prompts a step against 2.2-3.0 for status_query
+    # and preference_construction (12 and 11 cells). Task-balanced, every task gets
+    # 1.5-1.7 except those two, 0.8 each (their best cells start at q 0.28), and the
+    # draw's entropy is 4.29 nats against ln 82 = 4.41 for uniform
+    # (test_curriculum.py, test_v3_start_of_run_draw).
+    task_balanced: true
+
+reward:
+  # Partial credit on four tasks: a finished wrong answer is paid
+  # 0.3 * max(0, (s - b) / (1 - b)) (arggym_verl/reward_shape.py). The curriculum counts
+  # these tasks at their paid reward (curriculum.step_outcomes); dev, checkpoint
+  # selection and the auto-stop count exact success.
+  mode: partial
+  # status_query, defeat_diagnosis and formalization as in the partial run, plus
+  # perturbation: on the base eval its wrong answers at L2-4 sit 0.37 / 0.27 / 0.19 of
+  # the way from the floor to 1 (design.md, "Reward modes"), the near-miss profile of
+  # defeat_diagnosis L5-8, while its exact success there is 1-2 of 24-48 samples.
+  # semantics_query stays out: its wrong answers sit at or below its floor.
+  partial_tasks: [status_query, defeat_diagnosis, formalization, perturbation]
+  # Floors on the 004 pool, all 144 cells; the L1-8 entries equal
+  # floors-0df63cbebe86.json's. The file says its source.
+  partial_baseline: data/arggym-reward/floors-16f6114d9306.json
+
+trainer:
+  experiment_name: arggym-qwen3.5-4b-v3

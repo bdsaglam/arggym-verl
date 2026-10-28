@@ -436,3 +436,79 @@ def test_lora_targets_are_the_text_linears_and_vllm_serves_each(arggym, exp003):
                                                         qwen_gdn_linear_attn))
     linear = set(re.findall(r"self\.(\w+)\s*=\s*(?:Row|Column)ParallelLinear\(", source))
     assert set(kinds) <= {s for subs in packed.values() for s in subs} | linear
+
+
+# ---------------------------------------------------------------- v3
+
+
+@pytest.fixture(scope="module")
+def v3():
+    from hydra import compose, initialize_config_dir
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        return compose(config_name="arggym-qwen3.5-4b-v3",
+                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+
+
+def _flat(node, prefix=""):
+    if isinstance(node, dict):
+        out = {}
+        for k, v in node.items():
+            out.update(_flat(v, f"{prefix}{k}."))
+        return out
+    return {prefix[:-1]: node}
+
+
+def test_v3_is_v2_but_for_data_curriculum_and_reward(arggym, v3):
+    """Through the Hydra defaults chain (v3 -> arggym-qwen3.5-4b -> gsm8k-hard-qwen3-0.6b ->
+    verl's ppo_trainer), every key equals v2's except the ones v3 sets."""
+    from omegaconf import OmegaConf
+
+    old, new = (_flat(OmegaConf.to_container(c, resolve=False)) for c in (arggym, v3))
+    changed = {k for k in old.keys() | new.keys() if old.get(k, "absent") != new.get(k, "absent")}
+    assert changed == {"data.train_files", "data.val_files", "data.curriculum.prior",
+                       "data.curriculum.power", "data.curriculum.floor",
+                       "data.curriculum.task_balanced", "reward.mode", "reward.partial_tasks",
+                       "reward.partial_baseline", "trainer.experiment_name"}
+    assert new["data.train_files"].endswith("/data/arggym-qwen3.5-4b-v3/train.parquet")
+    assert new["data.val_files"].endswith("/data/arggym-qwen3.5-4b-v3/dev.parquet")
+    c = v3.data.curriculum
+    assert (c.power, c.floor, c.margin, c.task_balanced, c.half_life) == (2, 0.03, 0.09, True, 10)
+    assert v3.trainer.experiment_name == "arggym-qwen3.5-4b-v3"
+
+
+def test_v3_batch_arithmetic_and_schedule_are_v2s(v3):
+    a, r, t = v3.actor_rollout_ref.actor, v3.actor_rollout_ref.rollout, v3.trainer
+    assert (v3.data.train_batch_size, a.ppo_mini_batch_size, r.n, t.n_gpus_per_node) == (18, 9, 16, 3)
+    assert (v3.data.train_batch_size * r.n) % math.lcm(3, a.ppo_mini_batch_size * r.n) == 0
+    assert (t.test_freq, t.save_freq, t.total_training_steps) == (20, 5, 100)
+    assert a.optim.lr == 1e-5 and a.kl_loss_coef == 0.0
+
+
+def test_v3_reward_and_its_files(v3):
+    """Partial credit on four tasks; the floors file covers each on all 12 levels and says its
+    source; the prior file was built with the config's partial tasks and weight."""
+    import json
+
+    from arggym_verl.reward_shape import RewardShape
+
+    r = v3.reward
+    assert r.mode == "partial" and r.partial_weight == 0.3
+    assert list(r.partial_tasks) == ["status_query", "defeat_diagnosis", "formalization",
+                                     "perturbation"]
+    floors = json.loads((ROOT / r.partial_baseline).read_text())
+    assert "arggym.floors" in floors["source"] and "16f6114d9306" in floors["source"]
+    shape = RewardShape.from_config(r)
+    assert set(shape.floors) == {(t, lv) for t in r.partial_tasks for lv in range(1, 13)}
+    prior = json.loads((ROOT / v3.data.curriculum.prior).read_text())
+    assert "arggym_verl.prior" in prior["source"]
+    assert prior["partial_tasks"] == sorted(r.partial_tasks)
+    assert prior["partial_weight"] == r.partial_weight
+
+
+def test_v3_validates_with_kl_on(v3):
+    from verl.trainer.ppo.utils import need_critic, need_reference_policy
+    from verl.utils.config import validate_config
+
+    assert need_reference_policy(v3)
+    validate_config(config=v3, use_reference_policy=True, use_critic=need_critic(v3))

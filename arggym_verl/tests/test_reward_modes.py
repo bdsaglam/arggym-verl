@@ -244,3 +244,50 @@ def test_baselines_file_says_its_source():
     assert "arggym.floors" in data["source"] and "0df63cbebe86" in data["source"]
     assert len(data["by_task_level"]) == 12 * 8
     assert all(0 <= c["floor"] < 1 and c["n"] == 100 for c in data["by_task_level"].values())
+
+
+# ---------------------------------------------------------------- v3: floors on the 1-12 pool
+
+BASELINE_004 = "data/arggym-reward/floors-16f6114d9306.json"
+
+
+def test_004_floors_equal_003s_on_levels_1_to_8():
+    """The 1-12 pool's L1-8 rows are 003's, so every L1-8 floor is the old file's,
+    semantics_query's fitted one included."""
+    old = json.loads((ROOT / BASELINE).read_text())
+    new = json.loads((ROOT / BASELINE_004).read_text())
+    assert "arggym.floors" in new["source"] and "16f6114d9306" in new["source"]
+    assert len(new["by_task_level"]) == 12 * 12
+    assert all(c["n"] == 100 and 0 <= c["floor"] < 1 for c in new["by_task_level"].values())
+    assert {k: v for k, v in new["by_task_level"].items() if int(k.split("|L")[1]) <= 8} \
+        == old["by_task_level"]
+    for key in ("arggym_version", "scoring_version", "floors_version"):
+        assert new[key] == old[key]
+
+
+def test_v3_pays_a_perturbation_near_miss_at_its_levels_floor():
+    """v3's partial tasks include perturbation: a finished wrong answer at L3 is paid
+    0.3 * (s - b) / (1 - b), b the L3 floor; at L10 the L10 floor; status_query at L12 too."""
+    from hydra import compose as hcompose, initialize_config_dir
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        cfg = hcompose(config_name="arggym-qwen3.5-4b-v3",
+                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+    shape = RewardShape.from_config(cfg.reward)
+    floors = json.loads((ROOT / BASELINE_004).read_text())["by_task_level"]
+    for task, level in [("perturbation", 3), ("perturbation", 10), ("status_query", 12)]:
+        b = floors[f"{task}|L{level}"]["floor"]
+        assert shape.floors[(task, level)] == b
+        assert shape.pay(record(False, 0.8), task, level) == pytest.approx(0.3 * (0.8 - b) / (1 - b))
+        assert shape.pay(record(False, b / 2), task, level) == 0.0
+        assert shape.pay(record(True, 1.0), task, level) == 1.0
+        assert shape.pay(record(False, 0.8, truncated=True), task, level) == 0.0
+    # semantics_query stays binary.
+    assert shape.pay(record(False, 0.9), "semantics_query", 2) == 0.0
+
+
+def test_004_floors_cover_levels_9_to_12_for_every_partial_task():
+    new = json.loads((ROOT / BASELINE_004).read_text())["by_task_level"]
+    for task in ("status_query", "defeat_diagnosis", "formalization", "perturbation"):
+        for level in range(9, 13):
+            assert 0 < new[f"{task}|L{level}"]["floor"] < 1, (task, level)
