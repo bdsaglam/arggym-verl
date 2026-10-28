@@ -806,9 +806,11 @@ validates a step when its local `is_last_step`, computed before the step from
 the original budget (`trainer_base.py:482`), is true or the step is on the
 `test_freq` grid (`:505-506`); lowering the budget in `on_step_end` ends the loop
 without flipping that local. So for a stop off the grid `AutoStop.on_step_end`
-validates itself: after the weight sync (`super().on_step_end()`, as `fit`
-validates after it), under verl's `testing` timer, into the step's metrics,
-which `fit` logs with the step (`:528`). `DevSelection` writes `selection.json`
+marks the step, and `AutoStop._compute_metrics`, which `fit` calls where its own
+validation ends (`:517`: after the weight sync and outside the `step` timer of
+`:487-500`, so `timing_s/step` and throughput leave dev out), validates under
+verl's `testing` timer into the step's metrics, which `fit` logs with the step
+(`:528`). `DevSelection` writes `selection.json`
 with it, and the checkpoint is already saved, so the selection can name it. A
 stop on the grid, or at the last step, is evaluated once, by `fit`
 (`test_trainer.py`). The stop step's checkpoint is the one after two steps of

@@ -260,21 +260,22 @@ class AutoStop:
     computed before the step from the original `total_training_steps`
     (trainer_base.py:482), or the step is on the `test_freq` grid (:505-506); lowering
     `total_training_steps` does not flip that local, so a stop off the grid would leave
-    its checkpoint unevaluated. `on_step_end` then validates itself, after the weight
-    sync (`super().on_step_end()`, as `fit` validates after it) and into the step's
-    metrics, which `fit` logs with the step (:528); `DevSelection` writes
-    `selection.json` with the checkpoint just saved in it. A stop that `fit` evaluates
-    anyway is evaluated once.
+    its checkpoint unevaluated. `on_step_end` then only marks the step, and
+    `_compute_metrics`, which `fit` calls where its own validation would have ended
+    (:517, after the weight sync and outside the `step` timer of :487-500, so
+    `timing_s/step` and the throughput metrics leave dev out), validates under the
+    `testing` timer into the step's metrics, which `fit` logs with the step (:528);
+    `DevSelection` writes `selection.json` with the checkpoint just saved in it. A
+    stop that `fit` evaluates anyway is evaluated once.
     """
 
     stop_rule: Optional[StopRule] = None
     stop_reason: Optional[str] = None
-    #: The current step's metrics dict, which `fit` logs at the end of the step.
-    _step_metrics: Optional[dict] = None
+    #: Set by `on_step_end` when the stop step needs the dev evaluation fit skips.
+    _validate_at_stop: bool = False
 
     def step(self, metrics: dict, timing_raw: dict):
         batch = super().step(metrics, timing_raw)
-        self._step_metrics = metrics
         c = self.config.trainer.get("auto_stop")
         if c:
             if self.stop_rule is None:
@@ -285,14 +286,14 @@ class AutoStop:
 
     def on_step_end(self):
         t = self.config.trainer
-        validate = False
         if self.stop_reason:
             last = self.global_steps >= self.total_training_steps
             saved = t.save_freq > 0 and (last or self.global_steps % t.save_freq == 0)
             if not saved:
                 self._save_checkpoint()
             # fit validates this step itself when it is its last or on the test_freq grid.
-            validate = t.test_freq > 0 and not last and self.global_steps % t.test_freq != 0
+            self._validate_at_stop = (t.test_freq > 0 and not last
+                                      and self.global_steps % t.test_freq != 0)
             line = (f"step {self.global_steps}: {self.stop_reason}. Checkpoint "
                     f"global_step_{self.global_steps} saved; the run ends after this step.")
             print(f"AUTO-STOP: {line}", flush=True)
@@ -301,14 +302,19 @@ class AutoStop:
             # global_steps after logging this step.
             self.total_training_steps = self.global_steps
         super().on_step_end()
-        if validate:
+
+    def _compute_metrics(self, batch, metrics, timing_raw, global_steps, epoch):
+        # trainer_base.PPOTrainer._compute_metrics's signature; fit passes self.timing_raw.
+        if self._validate_at_stop:
             from verl.utils.debug import marked_timer
 
-            with marked_timer("testing", self.timing_raw, color="green"):
+            self._validate_at_stop = False
+            with marked_timer("testing", timing_raw, color="green"):
                 self.on_validate_begin()
-                val = self._validate()
+                metrics.update(self._validate())
                 self.on_validate_end()
-            self._step_metrics.update(val)
+        return super()._compute_metrics(batch, metrics, timing_raw, global_steps=global_steps,
+                                        epoch=epoch)
 
 
 class DevSelection:

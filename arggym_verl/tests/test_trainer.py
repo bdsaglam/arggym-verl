@@ -501,7 +501,7 @@ class FitStub:
         self.steps_per_epoch = total
         self.saved, self.logged, self.synced, self.ended = [], [], [], False
         #: (step, weight syncs so far) per dev evaluation; step -> the metrics fit logged.
-        self.validated, self.metrics = [], {}
+        self.validated, self.metrics, self.timings = [], {}, {}
 
     def step(self, metrics, timing_raw):
         pk, rk = self.script[self.global_steps - 1]
@@ -513,13 +513,21 @@ class FitStub:
         ckpt = Path(self.config.trainer.default_local_dir) / f"global_step_{self.global_steps}"
         ckpt.mkdir(parents=True, exist_ok=True)
 
+    #: Seconds a dev evaluation takes, so the timers can tell it from the step.
+    VALIDATE_S = 0.0
+
     def _validate(self):
+        import time
+
         self.validated.append((self.global_steps, len(self.synced)))
+        time.sleep(self.VALIDATE_S)
         return {self.DEV_KEY: 0.3 + self.global_steps / 100}
 
     def _compute_metrics(self, batch, metrics, timing_raw, global_steps, epoch):
+        """verl's: reads the step's metrics and timings (here, records them)."""
         self.logged.append(global_steps)
         self.metrics[global_steps] = dict(metrics)
+        self.timings[global_steps] = dict(timing_raw)
 
     def on_step_end(self):  # colocate_async: the weight sync
         self.synced.append(self.global_steps)
@@ -584,7 +592,7 @@ def test_auto_stop_ends_verls_fit_after_the_step_and_its_checkpoint(quiet_fit, c
 
 
 class StoppingSelectingFit(AutoStop, DevSelection, FitStub):
-    pass
+    VALIDATE_S = 0.3
 
 
 @pytest.mark.parametrize("stop_at, validated", [(7, [(7, 7)]), (20, [(10, 10), (20, 20)]),
@@ -593,7 +601,9 @@ def test_auto_stop_evaluates_dev_at_the_stop_step(quiet_fit, monkeypatch, tmp_pa
                                                   validated):
     """dev every 10 steps of 30. A stop off the grid (7, 13) is evaluated at the stop, after the
     step's weight sync, and its dev score is logged with the step; a stop on the grid (20) is
-    evaluated once, by fit. selection.json names the stop step's checkpoint."""
+    evaluated once, by fit. Either way the evaluation is timed as `testing`, outside the
+    step's `step` timer (timing_s/step, throughput). selection.json names the stop step's
+    checkpoint."""
     import json
 
     metrics = tmp_path / "metrics.jsonl"
@@ -606,7 +616,10 @@ def test_auto_stop_evaluates_dev_at_the_stop_step(quiet_fit, monkeypatch, tmp_pa
     # (step, syncs so far): the stop step's evaluation follows its own weight sync.
     assert trainer.validated == validated
     assert trainer.metrics[stop_at][FitStub.DEV_KEY] == pytest.approx(0.3 + stop_at / 100)
-    assert "testing" in trainer.timing_raw  # the stop step's timing, which fit logs
+    # What fit's _compute_metrics reads for the stop step: dev under `testing`, not `step`.
+    timing = trainer.timings[stop_at]
+    assert timing["testing"] >= StoppingSelectingFit.VALIDATE_S
+    assert timing["step"] < StoppingSelectingFit.VALIDATE_S
     sel = json.loads((tmp_path / "selection.json").read_text())
     assert sel["best_step"] == stop_at
     assert (tmp_path / "checkpoints" / f"global_step_{stop_at}").is_dir()
