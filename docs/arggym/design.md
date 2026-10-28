@@ -490,6 +490,60 @@ The GSM8K smoke checklist applies with three changes: `served/tokens` is
 positive from step 2 (no batch ahead), `training/off_policy/*` staleness is 0,
 and training metrics are comparable from step 1.
 
+### v3
+
+`arggym_verl/config/arggym-qwen3.5-4b-v3.yaml` is the recipe above with partial
+credit, cells up to level 12 and a task-balanced curriculum; everything else is
+inherited, and `test_config.py` checks that the keys below are the only ones
+that differ.
+
+| Setting | v2 (`arggym-qwen3.5-4b`) | v3 (`arggym-qwen3.5-4b-v3`) |
+|---|---|---|
+| Rows | 57 cells of L1-8, 5,700 rows (`tasks/arggym-003.yaml`) | 82 cells of L1-12, 8,200 rows of a 14,400-row pool whose L1-8 rows are 003's (`tasks/arggym-004.yaml`) |
+| Cell rule | 003's: pooled exact success in [0.15, 0.85] | paid rate q = p + (1 - p) x 0.3 x near in [0.15, 0.85], [0.12, 0.85] on a partial task (`arggym_verl/prior.py`) |
+| Reward | `binary` | `partial`, w 0.3, on status_query, defeat_diagnosis, formalization, perturbation; floors on the new pool ("Reward modes") |
+| Curriculum prior | base eval, 8 samples a cell | the paid rate q per cell, 16 samples' weight on L1-8, the base eval's 8 on L9-12 |
+| Curriculum weight | max(0, p(1 - p) - 0.09) + 0.005, cells in proportion | (max(0, q(1 - q) - 0.09) / 0.16)^2 + 0.03, two-level task-balanced draw ("Curriculum") |
+| Curriculum counts | passes | passes; the paid reward on the partial tasks |
+| Dev | 96 rows, L1-8 | the same 96 rows (`dev_levels`), exact success |
+| Auto-stop | as above | as above, and dev is evaluated at the stop step ("Checkpoint selection and auto-stop") |
+
+**Cells.** `python -m arggym_verl.prior build` computes each (task, level)'s
+paid rate, the reward's expected value, from evidence that excludes every
+test-set eval of a trained checkpoint. On L1-8, p pools 003's counts (the
+comments of `arggym-003.yaml`: the base eval, 002's training groups and dev)
+with the v2 run's training groups of steps 1-20, the partial run's of steps
+1-34 and both runs' step-20 dev (8 samples a row); a truncation counts as a
+failure. `near`, on a partial task, is the mean of two estimates: the base
+eval's, max(0, (m - b) / (1 - b)) with m its wrong answers' mean score and b its
+floor, and the runs', the mean of the reward's own term over their wrong
+answers (0 for a truncated one). On L9-12 the base eval alone gives both, 8
+samples a cell. `prior observe` tallied the runs' outputs into
+`data/arggym-prior/sources/`, beside a copy of the base eval's `metrics.json`,
+so the table rebuilds from the repository; `test_prior.py` rebuilds it, checks
+q by hand on two cells and checks `arggym-004.yaml`'s `train_cells` against it.
+
+The 82 cells keep 56 of v2's 57; preference_construction L7 leaves (0 of 96
+in the two runs' training groups, q 0.12). 13 L1-8 cells join: attack L4,
+defence L6, semantics_query L3 and formalization L7 on exact success, and nine
+near-miss cells on partial credit, defeat_diagnosis L5-7, status_query L6-8
+and perturbation L2-4. 13 cells join at L9-12, where the base eval's 8 samples
+decide alone: a cell with 1 pass in 8 (p 0.125) stays out unless partial credit
+lifts it, and 12 such cells stay out, beside 23 with no pass. `arggym-004.yaml`
+lists every cell's counts. Formalization L4-6 and L8-12 and perturbation L5-12
+stay out even with partial credit (q 0.10 or less); those tasks get 4 cells each
+and rely on the task-balanced draw ("Curriculum").
+
+**Cost.** The base model's completions at L9-12 are longer and truncate more:
+on the base eval, mean 36k tokens against 30k at L1-8, and 32% above the 40,960
+training cap against 17% (on the 13 selected L9-12 cells, 35k and 20%). A
+truncation pays 0 and counts as a failure, as in v2. On the start-of-run prior
+L9-12 cells take 14% of the draws, so a step's tokens rise by a few percent;
+the step waits for its longest completion, already capped. The partial run took
+50-100 minutes a step and 2 hours for its step-20 dev; expect about the same,
+6 dev evaluations plus one at a stop off the grid, and 5-8 days for 100 steps
+(an estimate, not measured).
+
 ## Curriculum
 
 Every ArgGYM run draws its training prompts with experiment 003's curriculum,
@@ -528,6 +582,40 @@ p 0.2-0.8, where the weight varies from 0.075 to 0.165. The draw entropy is
 earlier run's estimates at steps 5-65 it would have been 3.93-3.97, against
 4.01-4.02 for 003's weight. The margin moves the draw away from extreme cells;
 it does not concentrate it on a few.
+
+**v3: the paid rate, an exponent and a task hierarchy.** Three settings, all
+off in v2's config:
+
+- *Paid rate.* Under `reward.mode: partial` a group of a task in
+  `reward.partial_tasks` adds its paid reward to its cell, the sum of its
+  completions' rewards (`curriculum.step_outcomes`), rather than its passes, so
+  the cell's estimate is the rate the reward pays, q. A near-miss cell (exact
+  success ~0, wrong answers well above the floor) then sits at q 0.13-0.26,
+  where its groups differ in reward, instead of at the floor. The prior carries
+  q too (`data/arggym-prior/qwen3.5-4b-pooled-paid.json`, "ArgGYM run", v3).
+  Binary tasks still count passes, and dev and selection read exact success.
+- *Exponent* (`power`). The weight is normalized so the exponent reads:
+  (max(0, q(1 - q) - margin) / (0.25 - margin))^k + floor, 1 + floor at q 0.5.
+  At k = 1 that is v2's weight scaled by 1 / 0.16, with v2's floor 0.005 at
+  0.031: the same draw (`test_curriculum.py`). v3 sets k = 2 and floor 0.03:
+  q 0.75 then weighs 0.37 of q 0.5, against 0.61 at k = 1.
+- *Task balance* (`task_balanced`). A two-level draw: a task gets a share in
+  proportion to its best cell's weight, max_c w_c, and its cells share that in
+  proportion to w_c. Drawn in proportion to cells, a task's share grows with its
+  number of cells in band; the partial run gave perturbation, one cell, 1.3% of
+  its prompts over steps 1-30. A task whose cells all sit at the floor gets a
+  share in proportion to the floor.
+
+On v3's start-of-run prior over its 82 cells, task-balanced at k = 2 gives
+every task 1.46-1.71 of the 18 prompts a step, except formalization and
+perturbation at 0.84 (their best cells start at q 0.28); drawn in proportion
+to cells, formalization would get 0.39 and preference_construction 3.03. The
+draw's entropy is 4.29 nats (4.33 at k = 1; uniform over 82 cells is 4.41), and
+q < 0.2 cells get 1.3% of the draws. Every cell's mixed-group probability
+1 - q^16 - (1 - q)^16 is at least 0.87 (at q 0.12), so the cell weight changes
+little about group signal; the hierarchy is what moves the draw, from tasks
+with many cells in band to tasks with few. `test_curriculum.py` checks these
+numbers (`test_v3_start_of_run_draw`).
 
 **Where it plugs in.** verl v0.9.1 has no option for the prompt sampler:
 `create_rl_sampler` (`verl/trainer/ppo/utils.py:140`) builds a random or
@@ -580,9 +668,11 @@ load into one with it (its sampler state is the random sampler's).
 `curriculum/zero_signal_share` (the share of the step's groups whose 16 rewards
 are all equal, so every advantage in them is 0), and
 `curriculum/draw_entropy`, the entropy in nats of the distribution the next
-step draws from (uniform over 57 cells is 4.04); at step 1 and every 5 steps
-(`table_every`), `curriculum/pass_rate/<task>/L<level>` and
-`curriculum/draw_share/<task>/L<level>` for every cell.
+step draws from (uniform over 57 cells is 4.04, over v3's 82 4.41); at step 1
+and every 5 steps (`table_every`), `curriculum/pass_rate/<task>/L<level>` and
+`curriculum/draw_share/<task>/L<level>` for every cell. On a paid task
+(v3's partial tasks) `pass_rate` is the paid rate, and `draw_share` is the
+two-level share when the draw is task-balanced.
 
 **Not ported:** `algorithm.filter_groups` (DAPO's dynamic sampling). 003 drops
 no groups; it divides its loss by the tokens of completions with a nonzero
@@ -607,7 +697,9 @@ update.
 scorer, pays 0 for a truncated completion or a row the scorer refused, and
 leaves exact success where it was: the curriculum's pass/fail
 (`group_outcomes`), dev's `acc` and checkpoint selection read success, and dev
-completions are paid as in `binary`.
+completions are paid as in `binary`. The one exception is the curriculum under
+`partial`: it counts a partial task's groups at their paid reward ("Curriculum",
+v3).
 
 - `binary`, the default: 1 for a finished success, else 0.
 - `partial`: as `binary`, except that a finished failure on a task in
@@ -649,6 +741,17 @@ Wrong answers are the finished failures of the three ArgGYM runs' training
 rollouts. The config's `partial_tasks` are the first three. On `semantics_query`
 an uninformed answer scores more than the average wrong one, and on the rest
 wrong answers sit at or below the floor.
+
+**Perturbation, in v3.** The table measures perturbation on its only training
+cell, L1. At L2-4 its wrong answers are near misses: on the base eval they
+average 0.48, 0.38 and 0.36 against floors of 0.17, 0.15 and 0.21, 0.37, 0.27
+and 0.19 of the way from the floor to 1, and on the v2 and partial runs' step-20
+dev 0.43-0.64 of the way. That is the profile of defeat_diagnosis L5-8
+(0.37-0.52), while exact success there is 2-4 of 32-48 pooled samples. v3's
+`partial_tasks` add perturbation, and with it L2-4 become training cells at q
+0.16-0.23; without it the task trains on one cell. v3's floors are measured on
+its own pool (`data/arggym-reward/floors-16f6114d9306.json`, all 144 cells; its
+L1-8 entries equal the file above, `test_reward_modes.py`).
 
 With `norm_adv_by_std_in_grpo`, `w` does not scale a group whose completions all
 fail: its advantages are divided by the group's own spread, so two partial
@@ -693,12 +796,24 @@ On the earlier run's metrics both rules first fire at step 60
 rule fired, the mixin saves the step if it is off the 5-step grid, prints one
 line starting `AUTO-STOP:` with the reason to the driver log, writes the
 reason to a file `AUTO-STOP` in the run directory, and sets the step budget to
-the current step. The step then finishes as any other (dev only if it is on the
-20-step grid, metrics, rollouts), `fit`'s loop ends and `on_train_end` runs.
-`test_trainer.py` runs verl's own `fit` through such a stop. `run.sh` refuses
-to resume a run with an `AUTO-STOP` file until it is deleted. The checkpoint of
-a stop off the dev grid, like every 5-step checkpoint between dev steps, has no
-dev score and is not in the selection until it is evaluated by hand.
+the current step. The step then finishes as any other (metrics, rollouts),
+`fit`'s loop ends and `on_train_end` runs. `test_trainer.py` runs verl's own
+`fit` through such a stop. `run.sh` refuses to resume a run with an `AUTO-STOP`
+file until it is deleted.
+
+**Dev at the stop.** The stop step is evaluated on dev wherever it falls. `fit`
+validates a step when its local `is_last_step`, computed before the step from
+the original budget (`trainer_base.py:482`), is true or the step is on the
+`test_freq` grid (`:505-506`); lowering the budget in `on_step_end` ends the loop
+without flipping that local. So for a stop off the grid `AutoStop.on_step_end`
+validates itself: after the weight sync (`super().on_step_end()`, as `fit`
+validates after it), under verl's `testing` timer, into the step's metrics,
+which `fit` logs with the step (`:528`). `DevSelection` writes `selection.json`
+with it, and the checkpoint is already saved, so the selection can name it. A
+stop on the grid, or at the last step, is evaluated once, by `fit`
+(`test_trainer.py`). The stop step's checkpoint is the one after two steps of
+`ppo_kl` above 1e-3, and the last on-grid dev is up to 19 steps back; a 5-step
+checkpoint between them has no dev score until it is evaluated by hand.
 
 A resumed run rebuilds the rule's state from the run's metrics. verl's file
 logger truncates `metrics.jsonl` when it opens it (`verl/utils/tracking.py:541`),
@@ -709,6 +824,14 @@ stays off and the driver log says so once. The auto-stop does not replace
 the served-policy check's hard stop, which raises before the update.
 
 ## Known gaps
+
+- v3's L9-12 cells are chosen on 8 base-eval samples a cell, so a cell at 1 of
+  8 (out) and one at 2 of 8 (in) are not told apart with any confidence. A
+  cell left in that turns out hard is still drawn now and then, at the floor,
+  and its estimate can move; a cell left out is never drawn. Its L1-8 evidence mixes 003's near-base
+  samples with the v2 and partial runs' samples of a policy 20-34 steps into
+  training, so the prior there sits between where v3 starts and where those
+  runs went; one group of the cell outweighs it.
 
 - `arggym_verl.report` picks the best checkpoint among steps that have a
   checkpoint directory, so a dev score at a step without one is ignored. Both

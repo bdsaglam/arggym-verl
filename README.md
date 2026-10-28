@@ -12,7 +12,9 @@ patches to verl. It runs two tasks:
   solves 2 to 6 times in 8. A task GRPO is known to move, to check the pipeline.
 - **ArgGYM** (Qwen3.5-4B, 3 GPUs): the task of ArgGYM's experiment 003, 57
   (task, level) cells for training and all 96 for dev, prompts drawn by a
-  pass-rate curriculum.
+  pass-rate curriculum. Its v3 config trains on 82 cells up to level 12, with
+  partial credit for near misses on four tasks and a curriculum that balances
+  tasks; dev stays the 96 rows.
 
 The design, every hyperparameter and its source, and the full results are in
 [docs/arggym/design.md](docs/arggym/design.md). verl's own README is
@@ -82,6 +84,9 @@ RUN=smoke-gsm8k CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh gsm8k-hard-qwen3-
 # The two runs.
 CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b
 CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b
+
+# ArgGYM v3.
+RUN=arggym-qwen3.5-4b-v3 CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b-v3
 ```
 
 On A100s a GSM8K step takes about 3.5 minutes and a dev evaluation 6 to 14
@@ -100,6 +105,7 @@ name); a run with the same `RUN` resumes from its latest checkpoint.
 |---|---|---|---|---|
 | `gsm8k-hard-qwen3-0.6b` | Qwen3-0.6B @ `c1899de` | 2 | 64 prompts x 5 completions, one batch generated ahead | 200 |
 | `arggym-qwen3.5-4b` | Qwen3.5-4B @ `851bf6e` | 3 | 18 prompts x 16 completions, each step on its own batch | 100 |
+| `arggym-qwen3.5-4b-v3` | as above | 3 | as above | 100 |
 
 Both use verl's LoRA recipe: rank 64, alpha 32, all linear layers, token-mean
 loss, clip 0.2, two optimizer steps per batch, truncated importance sampling
@@ -119,6 +125,13 @@ trains with the model card's sampling (top_p 0.95, top_k 20, presence penalty 1.
   near misses on status_query, defeat_diagnosis and formalization above an
   uninformed answer's floor, and `reward.mode=native` pays the scorer's own score
   (design.md, "Reward modes").
+- ArgGYM v3 inherits the ArgGYM config and changes the rows, the reward and the
+  curriculum: 82 training cells of levels 1-12, chosen by the rate the reward
+  pays; `reward.mode: partial` with perturbation added to the three tasks; a
+  curriculum prior and estimates on that paid rate, a squared weight, and a draw
+  that gives each task a share by its best cell rather than by its number of
+  cells. Dev is the same 96 rows, and a run that stops itself is also evaluated
+  at the stop step (design.md, "ArgGYM run", v3).
 
 The model paths point into the Hugging Face cache (`HF_HUB_CACHE`, which
 `run.sh` sets from your Hugging Face settings).
@@ -175,8 +188,11 @@ What to read: `val-core/<task>/acc/mean@N` (dev success, the selection metric),
 `training/off_policy/*` (staleness), `actor/perf/max_memory_allocated_gb`. For
 the curriculum: `curriculum/mean_signal`, `curriculum/zero_signal_share` (the
 step's groups whose 16 rewards are all equal), `curriculum/draw_entropy` (4.04
-nats is uniform over the 57 cells), `curriculum/level_share/L*`, and every 5 steps
-each cell's `curriculum/pass_rate/*` and `curriculum/draw_share/*`. On GSM8K,
+nats is uniform over the 57 cells; v3 starts at 4.29 against 4.41 for its 82),
+`curriculum/level_share/L*`, and every 5 steps each cell's
+`curriculum/pass_rate/*` (in v3, the paid rate on the four partial tasks) and
+`curriculum/draw_share/*`. With partial credit, `reward/paid_mean` and
+`reward/success_mean` split the paid reward from exact success. On GSM8K,
 read training metrics from step 3: steps 1 and 2 split the first two batches by
 completion length (design.md, "Async"). design.md, "Smoke checklist", lists the
 expected values.
@@ -221,11 +237,19 @@ ratio", has the derivation.
   tasksets; the result is byte-identical to the pool ArgGYM built for 003.
   Its `dev.jsonl` and `summary.json` are committed (so `git status` shows any
   difference); `train.jsonl` (60 MB) is not. 5,700 training rows, 96 dev.
+- `data/arggym-qwen3.5-4b-v3/`: the same task on levels 1-12
+  (`arggym_verl/tasks/arggym-004.yaml`), pool
+  `data/arggym-pool/pools/16f6114d9306/`, whose L1-8 rows are 003's. 8,200
+  training rows of 82 cells, and 003's 96 dev rows (`dev_levels`).
 
 Each output directory also gets a committed `manifest.json` with the row ids.
 The task configs are `arggym_verl/tasks/*.yaml`. The curriculum's starting pass
 rates are `data/arggym-prior/hf-qwen3.5-4b__xml_tags__cot.json`, the base
-model's ArgGYM eval per cell; the file names its source.
+model's ArgGYM eval per cell; the file names its source. v3's are
+`data/arggym-prior/qwen3.5-4b-pooled-paid.json`, the rate the partial reward
+pays per cell, written by `python -m arggym_verl.prior build` from the inputs in
+`data/arggym-prior/sources/`; the same command prints the table v3's training
+cells are chosen from.
 
 ## Repository layout
 
@@ -238,10 +262,11 @@ arggym_verl/            our package
   reward.py             reward manager: ArgGYM's scorers on the sampled token ids
   reward_shape.py       reward.mode: what a training completion is paid
   floors.py             uninformed-answer floors per cell, for partial credit
+  prior.py              v3's training cells and curriculum prior, from the paid rate
   agent_loop.py         per-split sampling overrides on verl's single-turn agent loop
   data.py               task config -> parquet
   report.py             best checkpoint and training-side metrics of a run
-  config/               Hydra configs (the two runs, their agent loops)
+  config/               Hydra configs (the runs, their agent loops)
   tasks/                task configs: the rows each run trains and evaluates on
   vendor/               ArgGYM's training glue, vendored (MIT; see below)
   tests/                CPU tests; fixtures/ are outputs of ArgGYM's own code
