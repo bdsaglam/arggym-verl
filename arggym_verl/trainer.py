@@ -134,7 +134,8 @@ class CurriculumFeedback:
         from arggym_verl import curriculum as cur
 
         cur.check_setup(self.config, self.trainer_mode, self.parameter_sync_step)
-        self.curriculum = cur.build(self.config.data, self.train_dataset)
+        self.curriculum = cur.build(self.config.data, self.train_dataset,
+                                    cur.paid_tasks(self.config.get("reward")))
         verls = self.train_dataloader
         self.train_dataloader = StatefulDataLoader(
             dataset=self.train_dataset, batch_size=verls.batch_size, num_workers=0,

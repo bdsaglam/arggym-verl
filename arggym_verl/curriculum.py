@@ -12,7 +12,22 @@ config does (prior, half_life, floor, table_every), plus `margin`; the seed is
 The weight is max(0, p(1 - p) - margin) + floor. ArgGYM's is the case margin = 0,
 p(1 - p) + floor. A margin of 0.09 leaves cells with p <= 0.1 or p >= 0.9 the
 floor alone: they are drawn rarely, but still now and then, so their estimates
-can move back.
+can move back. With `power` k set the weight is normalized so the exponent reads,
+(max(0, p(1 - p) - margin) / (0.25 - margin))^k + floor: 1 + floor at p = 0.5. At
+k = 1 it is the unnormalized weight times 1 / (0.25 - margin), floor scaled alike
+(0.005 / 0.16 = 0.03125), so the draw is the same.
+
+With `task_balanced` the draw has two levels: a task gets a share in proportion to
+its best cell's weight, max_c w_c, and its cells share that in proportion to w_c.
+A task is worth its best cell, so the number of its cells in band does not
+multiply its share, and a task whose cells all sit at the floor gets a share in
+proportion to the floor. Without it, cells are drawn in proportion to w_c.
+
+What a group adds to its cell is its passes on a binary task. On a task the reward
+pays partial credit on (`reward.mode: partial`, `reward.partial_tasks`), it adds
+the group's paid reward, the sum of its completions' rewards, so the estimate is
+the paid rate q the reward pays on average and the prior starts from
+(`arggym_verl.prior`); `curriculum/pass_rate/<cell>` is that rate on those tasks.
 
 Differences from TRL's use of the same class, all in how it is driven:
 
@@ -30,20 +45,21 @@ Differences from TRL's use of the same class, all in how it is driven:
 
 What counts as a pass is `group_outcomes`'s rule on the reward's
 logged fields: a success that did not truncate; a completion the scorer refused
-is left out.
+is left out. On a paid task the reward's `score` counts instead; it pays 0 for a
+truncation.
 """
 from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
-from arggym_verl.vendor.rl_curriculum import (Cell, Curriculum, base_pass_counts,
-                                              group_outcomes, summary)
+from arggym_verl.vendor.rl_curriculum import Cell, Curriculum, base_pass_counts, summary
 
 
 class StepCurriculum(Curriculum):
-    """TRL's `Curriculum`, with a margin on the weight, refusing to draw before the
+    """TRL's `Curriculum`, with a margin and an exponent on the weight, an optional
+    task-balanced draw, the paid rate on paid tasks, and refusing to draw before the
     previous block's outcomes are in.
 
     verl asks for more prompts mid-step when it evicts a failed group and refills
@@ -51,16 +67,39 @@ class StepCurriculum(Curriculum):
     block from estimates that miss the current step.
     """
 
-    def __init__(self, *args, margin: float = 0.0, **kwargs) -> None:
+    def __init__(self, *args, margin: float = 0.0, power: Optional[float] = None,
+                 task_balanced: bool = False, paid_tasks: Iterable[str] = (), **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.margin = margin
+        self.power = power
+        self.task_balanced = task_balanced
+        #: Tasks whose groups add their paid reward rather than their passes.
+        self.paid_tasks = frozenset(paid_tasks)
 
-    def weights(self) -> Dict[Cell, float]:
+    def cell_weights(self) -> Dict[Cell, float]:
+        """w_c per cell (module docstring)."""
         out = {}
         for c in self.cells:
             p = self.pass_rate(c)
-            out[c] = max(0.0, p * (1 - p) - self.margin) + self.floor
+            signal = max(0.0, p * (1 - p) - self.margin)
+            if self.power is not None:
+                signal = (signal / (0.25 - self.margin)) ** self.power
+            out[c] = signal + self.floor
         return out
+
+    def weights(self) -> Dict[Cell, float]:
+        """What the draw is proportional to (the vendored `draw` and `table` read it): w_c,
+        or with `task_balanced` each cell's two-level share."""
+        w = self.cell_weights()
+        if not self.task_balanced:
+            return w
+        by_task: Dict[str, Dict[Cell, float]] = {}
+        for c, x in w.items():
+            by_task.setdefault(c[0], {})[c] = x
+        best = {t: max(ws.values()) for t, ws in by_task.items()}
+        total = sum(best.values())
+        return {c: best[t] / total * x / sum(ws.values())
+                for t, ws in by_task.items() for c, x in ws.items()}
 
     def draw(self) -> List[int]:
         if self.observed != self.blocks:
@@ -109,14 +148,25 @@ def check_setup(config, trainer_mode: str, parameter_sync_step: int) -> None:
         raise ValueError("data.curriculum: " + "; ".join(problems))
 
 
-def build(data_config, dataset) -> StepCurriculum:
+def paid_tasks(reward_config) -> List[str]:
+    """The tasks whose groups the curriculum counts at their paid reward: `reward.partial_tasks`
+    under `reward.mode: partial`, none otherwise."""
+    reward = reward_config or {}
+    if reward.get("mode", "binary") != "partial":
+        return []
+    return list(reward.get("partial_tasks") or [])
+
+
+def build(data_config, dataset, paid: Iterable[str] = ()) -> StepCurriculum:
     from arggym_verl.vendor.rl_pool import ROOT
 
     c = data_config.curriculum
     return StepCurriculum(cells_of(dataset), base_pass_counts(str(ROOT / c.prior)),
                           prompts_per_step=data_config.train_batch_size, num_generations=1,
                           steps_per_generation=1, seed=data_config.seed,
-                          half_life=c.half_life, floor=c.floor, margin=c.get("margin", 0.0))
+                          half_life=c.half_life, floor=c.floor, margin=c.get("margin", 0.0),
+                          power=c.get("power", None), task_balanced=c.get("task_balanced", False),
+                          paid_tasks=paid)
 
 
 def step_outcomes(curriculum: Curriculum, infos: Sequence[Dict[str, Any]],
@@ -124,9 +174,13 @@ def step_outcomes(curriculum: Curriculum, infos: Sequence[Dict[str, Any]],
     """(cell, successes, completions) per group of the step, in the order the block drew them.
 
     `infos` are the trajectories' `extra_info` (the dataset row's), `rewards` their
-    `reward_extra_info` (arggym_verl.reward); one entry per completion.
+    `reward_extra_info` (arggym_verl.reward); one entry per completion. A completion
+    counts 1 when it succeeded and did not truncate (`group_outcomes`'s rule), or, on a
+    task in the curriculum's `paid_tasks`, its paid reward `score`. A refused one is
+    left out, and a group with nothing left is dropped.
     """
     rows = curriculum.draws[curriculum.observed]["rows"]
+    paid = getattr(curriculum, "paid_tasks", frozenset())
     first: Dict[int, int] = {}
     for pos, r in enumerate(rows):
         first.setdefault(r, pos)
@@ -135,12 +189,18 @@ def step_outcomes(curriculum: Curriculum, infos: Sequence[Dict[str, Any]],
         if info["index"] not in first:
             raise RuntimeError(f"curriculum: row {info['index']} was trained but not drawn in "
                                f"block {curriculum.observed}")
-        records.append((first[info["index"]],
-                        {"id": info["id"], "task": info["task"], "level": int(info["level"]),
-                         "success": None if rew["refused"] else bool(rew["acc"]),
-                         "truncated": bool(rew["truncated"])}))
+        if rew["refused"]:
+            continue
+        value = (float(rew["score"]) if info["task"] in paid
+                 else int(bool(rew["acc"]) and not rew["truncated"]))
+        records.append((first[info["index"]], info["id"], (info["task"], int(info["level"])), value))
     records.sort(key=lambda x: x[0])
-    return group_outcomes([r for _, r in records])
+    groups: Dict[str, list] = {}
+    for _, gid, cell, value in records:
+        g = groups.setdefault(gid, [cell, 0, 0])
+        g[1] += value
+        g[2] += 1
+    return [tuple(g) for g in groups.values()]
 
 
 def zero_signal_share(infos: Sequence[Dict[str, Any]], rewards: Sequence[Dict[str, Any]]) -> float:

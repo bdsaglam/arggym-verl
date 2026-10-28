@@ -370,8 +370,9 @@ class PartialPay(ServedPolicyCheck, CurriculumFeedback, RewardMetrics, StepStub)
 
 
 def test_partial_pay_reaches_the_metrics_and_not_the_curriculum(queue, arggym_cfg):
-    """With failures paid partial credit, the curriculum still learns successes (`acc`), and
-    the step logs the paid reward and exact success apart."""
+    """With failures paid partial credit and no partial task under reward.mode partial, the
+    curriculum still learns successes (`acc`), and the step logs the paid reward and exact
+    success apart."""
     trainer = PartialPay(queue, arggym_cfg, Rows())
     c = trainer.curriculum
     metrics = {}
@@ -385,6 +386,27 @@ def test_partial_pay_reaches_the_metrics_and_not_the_curriculum(queue, arggym_cf
     assert metrics["reward/paid_mean"] == pytest.approx(sum(paid) / len(paid))
     assert metrics["reward/no_reward_variance_share"] <= metrics["reward/no_success_variance_share"]
     assert metrics["curriculum/zero_signal_share"] == metrics["reward/no_reward_variance_share"]
+
+
+def test_partial_mode_feeds_the_curriculum_the_paid_reward_on_partial_tasks(queue, arggym_cfg):
+    """Under reward.mode partial the curriculum adds a partial task's paid reward and another
+    task's passes (curriculum.step_outcomes), from reward.partial_tasks."""
+    cfg = OmegaConf.create(OmegaConf.to_container(arggym_cfg))
+    cfg.reward.mode = "partial"
+    cfg.reward.partial_tasks = ["attack", "status_query"]
+    trainer = PartialPay(queue, cfg, Rows())
+    c = trainer.curriculum
+    assert c.paid_tasks == {"attack", "status_query"}
+    trainer.step({}, {})
+    by_cell = {}
+    for r in queue.rows.values():
+        info, rew = r["extra_info"], r["extra_fields"]["reward_extra_info"]
+        paid = info["task"] in c.paid_tasks
+        g = by_cell.setdefault(info["id"], [0.0, info["task"]])
+        g[0] += rew["score"] if paid else rew["acc"]
+    want = sorted(round(v, 6) for v, _ in by_cell.values())
+    assert sorted(round(o["successes"], 6) for o in c.draws[0]["outcomes"]) == want
+    assert any(t in c.paid_tasks and v != int(v) for v, t in by_cell.values())
 
 
 def test_without_curriculum_verls_sampler_stays(queue, arggym_cfg):

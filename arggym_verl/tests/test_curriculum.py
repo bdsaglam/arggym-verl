@@ -295,3 +295,130 @@ def test_metrics(arggym, parquet):
     rows = [next(it) for _ in range(16)]
     feed(c, completions(1, rows, parquet["extra_info"]), shuffle_seed=1)
     assert not any(k.startswith("curriculum/pass_rate/") for k in cur.metrics(c, 2, 5))
+
+
+# ---------------------------------------------------------------- v3: exponent, task balance, paid rate
+
+
+def synthetic(**kwargs):
+    """Three tasks over Beta(1, 1) pass rates: a has cells at p 0.5, 0.75 and 0.1; b one cell
+    at 0.75; c two cells at the floor (0.1, 0.95)."""
+    from arggym_verl.curriculum import StepCurriculum
+
+    prior = {("a", 1): (4, 8), ("a", 2): (5, 6), ("a", 3): (0, 8), ("b", 1): (5, 6),
+             ("c", 1): (0, 8), ("c", 2): (18, 18)}
+    cells = {c: list(range(10 * i, 10 * i + 10)) for i, c in enumerate(prior)}
+    args = dict(prompts_per_step=18, num_generations=1, steps_per_generation=1, seed=0)
+    return StepCurriculum(cells, prior, **{**args, **kwargs})
+
+
+def shares(c):
+    return {(r["task"], r["level"]): r["draw_share"] for r in c.table()}
+
+
+def test_normalized_weight_at_k1_draws_as_the_current_weight():
+    """(max(0, p(1 - p) - m) / (0.25 - m))^1 + f / (0.25 - m) is the current weight times
+    1 / (0.25 - m): the same draw shares and the same draws. The current floor 0.005 is
+    0.03125 normalized."""
+    current = synthetic(margin=0.09, floor=0.005)
+    normalized = synthetic(margin=0.09, floor=0.005 / 0.16, power=1)
+    w0, w1 = current.cell_weights(), normalized.cell_weights()
+    assert all(w1[c] == pytest.approx(w0[c] / 0.16) for c in w0)
+    assert shares(normalized) == pytest.approx(shares(current))
+    assert normalized.draw() == current.draw()
+    assert w1[("a", 1)] == pytest.approx(1 + 0.03125)
+
+
+def test_k2_squares_the_normalized_signal():
+    """k = 2: p 0.5 weighs 1 + floor, p 0.75 ((0.1875 - 0.09) / 0.16)^2 + floor = 0.372 +
+    floor, p 0.1 and 0.95 the floor alone; the ratio of the two in-band cells grows from
+    1.6 (k = 1) to 2.6."""
+    w = synthetic(margin=0.09, floor=0.03, power=2).cell_weights()
+    assert w[("a", 1)] == pytest.approx(1.03)
+    assert w[("a", 2)] == pytest.approx(((0.1875 - 0.09) / 0.16) ** 2 + 0.03)
+    assert w[("a", 3)] == w[("c", 1)] == w[("c", 2)] == pytest.approx(0.03)
+    assert w[("a", 1)] > w[("a", 2)] > w[("a", 3)]
+    k1 = synthetic(margin=0.09, floor=0.03, power=1).cell_weights()
+    assert w[("a", 1)] / w[("a", 2)] > k1[("a", 1)] / k1[("a", 2)]
+
+
+def test_task_balanced_draw_gives_each_task_its_best_cells_share():
+    """A task gets max_c w_c / sum over tasks of max_c w_c of the draws, whatever its number of
+    cells, and its cells share that in proportion to w_c; a task of floor cells gets the
+    floor's share. Checked on the table and on 10^4 draws (+-0.01)."""
+    from collections import Counter
+
+    c = synthetic(margin=0.09, floor=0.03, power=2, task_balanced=True, prompts_per_step=10_000)
+    w = c.cell_weights()
+    best = {"a": w[("a", 1)], "b": w[("b", 1)], "c": 0.03}
+    total = sum(best.values())
+    s = shares(c)
+    for t in best:
+        assert sum(v for (task, _), v in s.items() if task == t) == pytest.approx(best[t] / total)
+    a_total = w[("a", 1)] + w[("a", 2)] + w[("a", 3)]
+    assert s[("a", 2)] == pytest.approx(best["a"] / total * w[("a", 2)] / a_total)
+    c.draw()
+    drawn = Counter(x["task"] for x in c.draws[0]["cells"])
+    for t in best:
+        assert drawn[t] / 10_000 == pytest.approx(best[t] / total, abs=0.01)
+    # Cell-proportional, task a's three cells would outweigh b's one.
+    flat = shares(synthetic(margin=0.09, floor=0.03, power=2))
+    assert sum(v for (t, _), v in flat.items() if t == "a") > sum(
+        v for (t, _), v in s.items() if t == "a")
+
+
+def test_paid_tasks_add_the_paid_reward_and_binary_tasks_their_passes():
+    """On a paid task a group adds the sum of its rewards (`score`: 1 for a pass, partial
+    credit for a near miss, 0 for a truncation); elsewhere its passes. Refusals are left out."""
+    from arggym_verl.curriculum import step_outcomes
+
+    cur = SimpleNamespace(draws=[{"rows": [0, 1]}], observed=0,
+                          paid_tasks=frozenset({"status_query"}))
+    info = {0: {"index": 0, "id": "r0", "task": "status_query", "level": 3},
+            1: {"index": 1, "id": "r1", "task": "attack", "level": 2}}
+    comps = [(1, 1.0, 1.0, 0.0, 0.0), (0, 1.0, 1.0, 0.0, 0.0), (0, 0.25, 0.0, 0.0, 0.0),
+             (1, 0.0, 0.0, 0.0, 0.0), (0, 0.0, 1.0, 1.0, 0.0), (0, 0.1, 0.0, 0.0, 0.0),
+             (1, 0.0, 1.0, 1.0, 0.0), (0, 0.0, 0.0, 0.0, 1.0), (1, 1.0, 1.0, 0.0, 0.0)]
+    infos = [info[r] for r, *_ in comps]
+    rewards = [{"score": s, "acc": a, "truncated": t, "refused": x} for _, s, a, t, x in comps]
+    (c0, s0, n0), (c1, s1, n1) = step_outcomes(cur, infos, rewards)
+    assert (c0, n0) == (("status_query", 3), 4) and s0 == pytest.approx(1.35)
+    assert (c1, s1, n1) == (("attack", 2), 2, 4)
+    # Without paid tasks every group counts passes, as before.
+    cur.paid_tasks = frozenset()
+    assert step_outcomes(cur, infos, rewards)[0] == (("status_query", 3), 1, 4)
+
+
+def test_paid_tasks_come_from_the_reward_block():
+    from arggym_verl.curriculum import paid_tasks
+
+    assert paid_tasks({"mode": "binary", "partial_tasks": ["status_query"]}) == []
+    assert paid_tasks({"mode": "native", "partial_tasks": ["status_query"]}) == []
+    assert paid_tasks(None) == []
+    assert paid_tasks({"mode": "partial", "partial_tasks": ["status_query", "perturbation"]}) == [
+        "status_query", "perturbation"]
+
+
+def test_resume_round_trips_fractional_paid_counts():
+    """A paid task's counts are fractional; state_dict -> JSON -> load_state_dict restores them,
+    and the resumed curriculum draws as the uninterrupted one."""
+    from arggym_verl.curriculum import step_outcomes
+
+    kw = dict(margin=0.09, floor=0.03, power=2, task_balanced=True, paid_tasks={"a"})
+    first = synthetic(**kw)
+    for step in range(3):
+        rows = first.draw()
+        infos, rewards = [], []
+        for r in rows:
+            task, level = next(c for c, rs in first.cells.items() if r in rs)
+            for k in range(4):
+                infos.append({"index": r, "id": f"{r}", "task": task, "level": level})
+                rewards.append({"score": [1.0, 0.2, 0.05, 0.0][k], "acc": float(k == 0),
+                                "truncated": 0.0, "refused": 0.0})
+        first.update(step_outcomes(first, infos, rewards))
+    assert any(s != int(s) for s, _ in first.counts.values())
+    state = json.loads(json.dumps(first.state_dict()))
+    resumed = synthetic(**kw)
+    resumed.load_state_dict(state)
+    assert resumed.counts == first.counts and resumed.weights() == first.weights()
+    assert resumed.draw() == first.draw()
