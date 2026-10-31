@@ -512,3 +512,20 @@ def test_v3_validates_with_kl_on(v3):
 
     assert need_reference_policy(v3)
     validate_config(config=v3, use_reference_policy=True, use_critic=need_critic(v3))
+
+
+def test_v3_lr3e5_is_v3_but_for_the_learning_rate(v3):
+    """Through the defaults chain, every key equals v3's except the LR and the name; the
+    schedule's shape (cosine to a tenth, 3-step warmup, 100 steps) is v3's."""
+    from hydra import compose, initialize_config_dir
+    from omegaconf import OmegaConf
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        fast = compose(config_name="arggym-qwen3.5-4b-v3-lr3e-5",
+                       overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+    old, new = (_flat(OmegaConf.to_container(c, resolve=False)) for c in (v3, fast))
+    changed = {k for k in old.keys() | new.keys() if old.get(k, "absent") != new.get(k, "absent")}
+    assert changed == {"actor_rollout_ref.actor.optim.lr", "trainer.experiment_name"}
+    o = fast.actor_rollout_ref.actor.optim
+    assert (o.lr, o.lr_scheduler_type, o.min_lr_ratio, o.lr_warmup_steps) == (3e-5, "cosine", 0.1, 3)
+    assert fast.trainer.total_training_steps == 100

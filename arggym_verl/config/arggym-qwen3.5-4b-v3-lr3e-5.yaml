@@ -1,0 +1,23 @@
+# ArgGYM v3 at a peak LR of 3e-5: v3 (arggym-qwen3.5-4b-v3.yaml) with the learning rate
+# alone changed. Cosine still decays it to a tenth (3e-6) over 100 steps after the 3-step
+# warmup, and the auto-stop is v3's.
+#
+# Why: on the 96-row dev, runs at 1e-5 cosine gained +0.04 to +0.05 by step 20 (v2, the
+# partial run, v3) and +0.08 by step 40 (the partial run); the earlier runs at a constant
+# 3e-5 gained +0.12 by step 20 and +0.20 by step 40 (2 samples a row). LoRA's best LR is
+# about 10x full fine-tuning's, 15x in short runs (Thinking Machines, "LoRA Without
+# Regret", 2025), which puts 1e-5 to 1.5e-5 against long-CoT RL's full-weight 1e-6; this
+# task learns faster above that. The constant-3e-5 curriculum run destabilised after
+# step 58; here the LR at step 58 is 1.9e-5 and falling (design.md, "ArgGYM run").
+
+defaults:
+  - arggym-qwen3.5-4b-v3
+  - _self_
+
+actor_rollout_ref:
+  actor:
+    optim:
+      lr: 3.0e-5
+
+trainer:
+  experiment_name: arggym-qwen3.5-4b-v3-lr3e-5

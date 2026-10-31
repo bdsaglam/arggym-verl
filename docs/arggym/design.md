@@ -544,6 +544,23 @@ the step waits for its longest completion, already capped. The partial run took
 6 dev evaluations plus one at a stop off the grid, and 5-8 days for 100 steps
 (an estimate, not measured).
 
+### v3 at a peak LR of 3e-5
+
+`arggym_verl/config/arggym-qwen3.5-4b-v3-lr3e-5.yaml` is v3 with the peak LR
+raised from 1e-5 to 3e-5; cosine still decays it to a tenth over 100 steps, and
+`test_config.py` checks the LR and the run name are the only keys that differ.
+
+On the 96-row dev, the three runs at 1e-5 cosine gained +0.04 to +0.05 by
+step 20 (v2 0.316 to 0.363, the partial run to 0.367, v3 0.318 to 0.359) and
+the partial run +0.08 by step 40 (0.397). The earlier runs at a constant 3e-5
+gained +0.12 by step 20 (0.286 to 0.406) and +0.20 by step 40 (0.484), on 2
+samples a row (about 0.03 of noise). 1e-5 is LoRA's textbook rate, about 10x
+long-CoT RL's full-weight 1e-6 (15x in short runs; Thinking Machines, "LoRA
+Without Regret", 2025); this task learns two to three times faster per step
+above it. The constant-3e-5 curriculum run destabilised after step 58; here the
+LR at step 58 is 1.9e-5 and falling, and the auto-stop, which that run lacked,
+ends a run whose updates or sampler mismatch grow.
+
 ## Curriculum
 
 Every ArgGYM run draws its training prompts with experiment 003's curriculum,
