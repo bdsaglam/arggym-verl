@@ -561,6 +561,17 @@ above it. The constant-3e-5 curriculum run destabilised after step 58; here the
 LR at step 58 is 1.9e-5 and falling, and the auto-stop, which that run lacked,
 ends a run whose updates or sampler mismatch grow.
 
+It reached dev 0.428 at step 20 (+0.120 over its step 0, +0.069 over v3 at step
+20), then from step 18 to 22 KL to base went 0.011 to 0.024, `actor/ppo_kl`
+2.3e-4 to 7.3e-4, `rollout_corr/kl` 0.063 to 0.076 and entropy 0.77 to 0.90,
+all accelerating, with the LR still 2.8e-5. It was stopped at step 23 and
+continued from step 20 at 1e-5 (`arggym-qwen3.5-4b-v3-lr3e-5-drop.yaml`).
+`scripts/arggym/seed_from.sh` copies the checkpoint and the metrics up to that
+step into the new run directory; the config loads the model and optimizer but not
+the scheduler, and `fsdp_checkpoint_manager` (patched) then sets the optimizer's
+LR from the new run's scheduler, which a plain resume would overwrite with the
+saved run's.
+
 ## Curriculum
 
 Every ArgGYM run draws its training prompts with experiment 003's curriculum,

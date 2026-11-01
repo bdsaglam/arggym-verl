@@ -529,3 +529,22 @@ def test_v3_lr3e5_is_v3_but_for_the_learning_rate(v3):
     o = fast.actor_rollout_ref.actor.optim
     assert (o.lr, o.lr_scheduler_type, o.min_lr_ratio, o.lr_warmup_steps) == (3e-5, "cosine", 0.1, 3)
     assert fast.trainer.total_training_steps == 100
+
+
+def test_v3_lr3e5_drop_continues_at_1e5(v3):
+    """The drop run is the 3e-5 run but for the LR (1e-5, no warmup), the checkpoint contents it
+    loads (model and optimizer, not the scheduler), no step-0 dev, and its name."""
+    from hydra import compose, initialize_config_dir
+    from omegaconf import OmegaConf
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        fast, drop = (compose(config_name=n, overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+                      for n in ("arggym-qwen3.5-4b-v3-lr3e-5", "arggym-qwen3.5-4b-v3-lr3e-5-drop"))
+    old, new = (_flat(OmegaConf.to_container(c, resolve=False)) for c in (fast, drop))
+    changed = {k for k in old.keys() | new.keys() if old.get(k, "absent") != new.get(k, "absent")}
+    assert changed == {"actor_rollout_ref.actor.optim.lr", "actor_rollout_ref.actor.optim.lr_warmup_steps",
+                       "actor_rollout_ref.actor.checkpoint.load_contents", "trainer.val_before_train",
+                       "trainer.experiment_name"}
+    a = drop.actor_rollout_ref.actor
+    assert (a.optim.lr, a.optim.lr_warmup_steps, a.optim.lr_scheduler_type) == (1e-5, 0, "cosine")
+    assert list(a.checkpoint.load_contents) == ["model", "optimizer"]

@@ -236,6 +236,17 @@ class FSDPCheckpointManager(BaseCheckpointManager):
                 optimizer_state_dict = self._backfill_optimizer_state(optimizer_state_dict)
                 self.optimizer.load_state_dict(optimizer_state_dict)
                 log_with_rank(f"Loaded optimizer from {remote_optim_path}", rank=self.rank, logger=logger)
+                # arggym-verl: the optimizer state carries the saved run's LRs. Without the
+                # scheduler ("extra"), the fresh scheduler from this run's config sets them, so
+                # a run seeded from another run's checkpoint trains at its own LR from its first step.
+                if not self.should_load_extra and self.lr_scheduler is not None:
+                    for g, base, lr in zip(
+                        self.optimizer.param_groups,
+                        self.lr_scheduler.base_lrs,
+                        self.lr_scheduler.get_last_lr(),
+                        strict=True,
+                    ):
+                        g["initial_lr"], g["lr"] = base, lr
 
         if self.should_load_extra:
             remote_extra_state_path = os.path.join(

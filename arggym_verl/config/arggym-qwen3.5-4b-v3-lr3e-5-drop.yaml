@@ -1,0 +1,33 @@
+# v3 at 3e-5, continued from its step-20 checkpoint at a peak LR of 1e-5: the fast start of
+# arggym-qwen3.5-4b-v3-lr3e-5.yaml, then v3's gentler rate.
+#
+# Why: at 3e-5 dev rose from 0.309 to 0.428 by step 20 (v3 at 1e-5: 0.359), but from step 18
+# to 22 KL to base went 0.011 -> 0.024, actor/ppo_kl 2.3e-4 -> 7.3e-4, rollout_corr/kl
+# 0.063 -> 0.076 and entropy 0.77 -> 0.90, all accelerating, while cosine had only taken the
+# LR to 2.8e-5: the pattern that preceded the constant-3e-5 run's collapse. v3 at 1e-5 ran 40
+# steps with KL below 0.007 (design.md, "ArgGYM run").
+#
+# The run directory is seeded with the 3e-5 run's global_step_20 and its metrics up to step 20
+# (scripts in design.md, "v3 at a peak LR of 3e-5"). load_contents [model, optimizer] keeps
+# the adapter, Adam's moments and the curriculum (data.pt is always loaded) and leaves the
+# scheduler to this config; fsdp_checkpoint_manager then gives the optimizer this
+# scheduler's LR. No warmup: the moments are warm. Cosine from 1e-5 over the run's 100 steps.
+
+defaults:
+  - arggym-qwen3.5-4b-v3-lr3e-5
+  - _self_
+
+actor_rollout_ref:
+  actor:
+    optim:
+      lr: 1.0e-5
+      lr_warmup_steps: 0
+    checkpoint:
+      # Only for the first launch from the seeded step-20 checkpoint; a relaunch after a crash
+      # resumes this run's own checkpoints and must load everything (load_contents=[model,optimizer,extra]).
+      load_contents: [model, optimizer]
+
+trainer:
+  # Step 20's dev is the 3e-5 run's (0.428), copied with its metrics.
+  val_before_train: false
+  experiment_name: arggym-qwen3.5-4b-v3-lr3e-5-drop
