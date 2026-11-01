@@ -1,0 +1,21 @@
+# v3 at a peak LR of 3e-5 with the KL-to-base term back in the loss at 0.001 (low_var_kl),
+# as in the recipe and curriculum runs: arggym-qwen3.5-4b-v3-lr3e-5.yaml but for the KL weight.
+#
+# Why: every run with kl_loss_coef 0 (v2, partial, v3, v3 at 3e-5) drifted up in entropy,
+# KL to base and rollout_corr/kl from step 1, at a pace set by the cumulative LR; every run
+# with 0.001 held entropy flat for 40-100 steps (recipe 42, curriculum ~52, GSM8K 100). At
+# 3e-5, entropy rose +0.017 over steps 11-15 with the term and +0.124 without. The comparison
+# is confounded (v2 also changed curriculum, batch, schedule and data); this run isolates it.
+# Read-out: entropy over steps 11-15 rising by 0.03 or less, against v3 at 3e-5's +0.124
+# (design.md, "Entropy drift and the KL term").
+
+defaults:
+  - arggym-qwen3.5-4b-v3-lr3e-5
+  - _self_
+
+actor_rollout_ref:
+  actor:
+    kl_loss_coef: 0.001
+
+trainer:
+  experiment_name: arggym-qwen3.5-4b-v3-lr3e-5-kl

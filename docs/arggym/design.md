@@ -570,7 +570,32 @@ continued from step 20 at 1e-5 (`arggym-qwen3.5-4b-v3-lr3e-5-drop.yaml`).
 step into the new run directory; the config loads the model and optimizer but not
 the scheduler, and `fsdp_checkpoint_manager` (patched) then sets the optimizer's
 LR from the new run's scheduler, which a plain resume would overwrite with the
-saved run's.
+saved run's. The continuation was stopped at step 23 for the KL run below.
+
+### Entropy drift and the KL term
+
+Every run with `kl_loss_coef` 0 (v2, the partial run, v3, v3 at 3e-5) drifts up
+in entropy, KL to base and `rollout_corr/kl` from step 1, and the drift follows
+the cumulative LR: v3 at 1e-5 reaches entropy 0.71 at step 40, v3 at 3e-5 at
+step 12. `rollout_corr/kl` follows entropy within a step (R² 0.89-0.99 per run):
+the sampler renormalises over top-k and top-p, so the gap to the trainer's
+full-vocabulary softmax grows as the policy flattens. Every run with 0.001
+(recipe, curriculum, the GSM8K control) holds entropy flat for 40-100 steps; at
+3e-5, entropy rose +0.017 over steps 11-15 with the term and +0.124 without.
+
+The likely source of the push is the card's sampling: vLLM's logprobs are taken
+after the presence penalty, temperature and top-k/top-p
+(`processed_logprobs`), while the trainer's are the plain softmax (verl's
+top-k/top-p is a TODO, `verl/utils/torch_functional.py`), so both the IS and
+the PPO ratio compare against a distribution the trainer cannot represent, and
+tokens outside top-k/top-p are never sampled. The curriculum run's collapse
+ended in ALL-CAPS lines and one-word loops, which a presence penalty favours.
+
+v2 had removed the term; the comparison above is confounded by everything else
+v2 changed. `arggym-qwen3.5-4b-v3-lr3e-5-kl.yaml` is v3 at 3e-5 with 0.001 back,
+read out on entropy over steps 11-15 (a rise of 0.03 or less against +0.124).
+Trainer-side sampling (applying the penalty and the top-k/top-p mask in the
+trainer's logprobs) is the root fix if the term alone is not enough.
 
 ## Curriculum
 

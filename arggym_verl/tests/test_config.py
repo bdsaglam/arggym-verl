@@ -548,3 +548,18 @@ def test_v3_lr3e5_drop_continues_at_1e5(v3):
     a = drop.actor_rollout_ref.actor
     assert (a.optim.lr, a.optim.lr_warmup_steps, a.optim.lr_scheduler_type) == (1e-5, 0, "cosine")
     assert list(a.checkpoint.load_contents) == ["model", "optimizer"]
+
+
+def test_v3_lr3e5_kl_is_the_3e5_run_with_the_kl_term():
+    """The KL run is v3 at 3e-5 but for kl_loss_coef 0.001 (low_var_kl) and its name."""
+    from hydra import compose, initialize_config_dir
+    from omegaconf import OmegaConf
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        fast, kl = (compose(config_name=n, overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+                    for n in ("arggym-qwen3.5-4b-v3-lr3e-5", "arggym-qwen3.5-4b-v3-lr3e-5-kl"))
+    old, new = (_flat(OmegaConf.to_container(c, resolve=False)) for c in (fast, kl))
+    changed = {k for k in old.keys() | new.keys() if old.get(k, "absent") != new.get(k, "absent")}
+    assert changed == {"actor_rollout_ref.actor.kl_loss_coef", "trainer.experiment_name"}
+    a = kl.actor_rollout_ref.actor
+    assert (a.use_kl_loss, a.kl_loss_coef, a.kl_loss_type) == (True, 0.001, "low_var_kl")
