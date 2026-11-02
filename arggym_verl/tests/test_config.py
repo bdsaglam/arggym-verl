@@ -580,3 +580,32 @@ def test_v3_lr3e5_nomask_is_the_3e5_run_without_top_k_top_p():
     r = nomask.actor_rollout_ref.rollout
     assert (r.top_p, r.top_k, r.temperature) == (1.0, -1, 1.0)
     assert (r.val_kwargs.top_p, r.val_kwargs.top_k) == (0.95, 20)
+
+
+def test_v3_lr3e5_matched_is_the_3e5_run_with_the_trainer_matching_the_sampler():
+    """The matched run is v3 at 3e-5 but for actor.match_sampler (penalty and mask) and its name.
+    The values the trainer applies are the ones that reach vLLM for a training row, and verl's
+    actor config accepts the switch."""
+    from hydra import compose, initialize_config_dir
+    from omegaconf import OmegaConf
+    from verl.utils.config import omega_conf_to_dataclass
+
+    from arggym_verl.trainer import sampler_info
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        fast, matched = (compose(config_name=n, overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+                         for n in ("arggym-qwen3.5-4b-v3-lr3e-5", "arggym-qwen3.5-4b-v3-lr3e-5-matched"))
+    old, new = (_flat(OmegaConf.to_container(c, resolve=False)) for c in (fast, matched))
+    changed = {k for k in old.keys() | new.keys() if old.get(k, "absent") != new.get(k, "absent")}
+    assert changed == {"actor_rollout_ref.actor.match_sampler.presence_penalty",
+                       "actor_rollout_ref.actor.match_sampler.mask", "trainer.experiment_name"}
+    assert matched.trainer.experiment_name == "arggym-qwen3.5-4b-v3-lr3e-5-matched"
+    sent = sampling_sent(matched, validate=False)
+    assert sampler_info(matched) == {"sampler_presence_penalty": sent["presence_penalty"],
+                                     "sampler_top_k": sent["top_k"], "sampler_top_p": sent["top_p"]} \
+        == {"sampler_presence_penalty": 1.5, "sampler_top_k": 20, "sampler_top_p": 0.95}
+    assert sent["temperature"] == matched.actor_rollout_ref.rollout.temperature == 1.0
+    assert sampler_info(fast) == {}
+    actor = omega_conf_to_dataclass(matched.actor_rollout_ref.actor)
+    assert (actor.match_sampler.presence_penalty, actor.match_sampler.mask) == (True, True)
+    assert not omega_conf_to_dataclass(fast.actor_rollout_ref.actor).match_sampler.mask

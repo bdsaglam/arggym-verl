@@ -1,0 +1,29 @@
+# v3 at a peak LR of 3e-5 with the trainer's log-probs taken under the training rollouts'
+# sampling: arggym-qwen3.5-4b-v3-lr3e-5.yaml but for actor.match_sampler (E3). Rollouts are
+# sampled as before (T 1, top_k 20, top_p 0.95, presence penalty 1.5).
+#
+# Why: vLLM returns the log-probs of the distribution it samples from, after the presence
+# penalty and the top-k / top-p mask (processed_logprobs), while the trainer took the plain
+# softmax over the vocabulary. The gap, rollout_corr/kl 0.042 at step 1, tracks the entropy
+# drift of every run with kl_loss_coef 0, and the IS weight can reweight tokens but not
+# represent the support or the penalty. Here old_log_probs, the update's log-probs and the
+# reference pass all subtract 1.5 from the logits of tokens already in the response and keep
+# only the top-k 20 / top-p 0.95 support before the log-softmax (arggym_verl/trainer.py,
+# MatchSampler; verl/utils/sampler_logprobs.py). Entropy is still logged on the full
+# distribution, comparable with the earlier runs.
+# Read-out: rollout_corr/kl at step 1 drops from ~0.042 to 0.002 or less, and entropy over
+# steps 11-12 against steps 1-5 rises by 0.03 or less, against v3 at 3e-5's +0.11 at step 12
+# (design.md, "Entropy drift and the KL term").
+
+defaults:
+  - arggym-qwen3.5-4b-v3-lr3e-5
+  - _self_
+
+actor_rollout_ref:
+  actor:
+    match_sampler:
+      presence_penalty: true
+      mask: true
+
+trainer:
+  experiment_name: arggym-qwen3.5-4b-v3-lr3e-5-matched
