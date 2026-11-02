@@ -99,6 +99,20 @@ calculate_entropy: false
 # c.f. https://yingru.notion.site/The-Optimal-Token-Baseline-399211a558b782cfa936014c0d42dfb8
 calculate_sum_pi_squared: false
 
+# The rollout sampler's transforms applied to the trainer's logits before its log-softmax, so
+# that its log-probs of rollout tokens (old, reference, update) are the sampled distribution's.
+# The trainer passes the values in the batch: sampler_presence_penalty, sampler_top_k, sampler_top_p
+match_sampler:
+
+  # Required when using verl.utils.omega_conf_to_dataclass to instantiate dataclass configs
+  _target_: verl.workers.config.MatchSamplerConfig
+
+  # Subtract the presence penalty from every token already in the response
+  presence_penalty: false
+
+  # Keep only the top-k / top-p support and renormalise over it
+  mask: false
+
 # Whether to use KL loss instead of KL reward penalty. True for GRPO
 use_kl_loss: false
 

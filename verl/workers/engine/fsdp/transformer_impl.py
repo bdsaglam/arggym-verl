@@ -61,6 +61,7 @@ from verl.utils.fsdp_utils import (
 )
 from verl.utils.model import convert_weight_keys, extract_multi_modal_inputs
 from verl.utils.py_functional import convert_to_regular_types
+from verl.utils.sampler_logprobs import SamplerParams, sampler_log_probs
 from verl.utils.seqlen_balancing import ceildiv
 from verl.utils.torch_functional import logprobs_from_logits
 from verl.utils.ulysses import (
@@ -101,6 +102,30 @@ def _scale_logits_by_temperature(logits, temperature, *, is_unit_temperature: bo
     if is_unit_temperature:
         return logits
     return logits / temperature.clamp(min=1e-8).to(logits.dtype)
+
+
+def _sampler_params(micro_batch: TensorDict) -> SamplerParams:
+    """The rollout's sampling transforms the trainer reproduces (actor.match_sampler); none by default."""
+
+    return SamplerParams(
+        presence_penalty=float(tu.get_non_tensor_data(data=micro_batch, key="sampler_presence_penalty", default=0.0)),
+        top_k=int(tu.get_non_tensor_data(data=micro_batch, key="sampler_top_k", default=-1)),
+        top_p=float(tu.get_non_tensor_data(data=micro_batch, key="sampler_top_p", default=1.0)),
+    )
+
+
+def _prompt_lens(micro_batch: TensorDict) -> list[int]:
+    """Each packed sequence's prompt length, as no_padding_2_padding splits prompt from response."""
+
+    seq_lens = micro_batch["input_ids"].offsets().diff()
+    responses = micro_batch["responses"]
+    if responses.is_nested:
+        response_lens = responses.offsets().diff()
+    else:
+        response_lens = micro_batch["attention_mask"][:, micro_batch["prompts"].shape[1] :].sum(dim=1)
+    prompt_lens = (seq_lens - response_lens.to(seq_lens.device)).tolist()
+    assert min(prompt_lens) > 0, f"every sequence needs a prompt, got prompt lengths {prompt_lens}"
+    return prompt_lens
 
 
 class FSDPEngine(BaseEngine):
@@ -1346,6 +1371,13 @@ class FSDPEngineWithLMHead(FSDPEngine):
                 "fused kernels do not materialize the full logits tensor needed for Σπ²."
             )
 
+        sampler = _sampler_params(micro_batch)
+        if sampler.active and (use_fused_kernels or not use_remove_padding or self.use_ulysses_sp):
+            raise NotImplementedError(
+                "actor.match_sampler needs the packed (use_remove_padding) log-prob path without fused "
+                "kernels or Ulysses sequence parallelism"
+            )
+
         model_output = {}
 
         # Some internal callers construct output_args directly instead of going
@@ -1425,11 +1457,25 @@ class FSDPEngineWithLMHead(FSDPEngine):
                     inplace_backward = True
                     if calculate_entropy:
                         inplace_backward = False
-                    log_probs = logprobs_from_logits(
-                        logits=logits_rmpad,
-                        labels=input_ids_rmpad_rolled,
-                        inplace_backward=inplace_backward,
-                    )
+                    if sampler.active:
+                        # The rollout's distribution (penalty, top-k, top-p) rather than the plain
+                        # softmax; entropy above stays the full distribution's.
+                        log_probs = sampler_log_probs(
+                            logits=logits_rmpad,
+                            labels=input_ids_rmpad_rolled,
+                            params=sampler,
+                            cu_seqlens=input_ids.offsets().tolist(),
+                            prompt_lens=_prompt_lens(micro_batch),
+                            input_ids=input_ids.values(),
+                            temperature=temperature_rmpad,
+                            inplace_backward=inplace_backward,
+                        )
+                    else:
+                        log_probs = logprobs_from_logits(
+                            logits=logits_rmpad,
+                            labels=input_ids_rmpad_rolled,
+                            inplace_backward=inplace_backward,
+                        )
 
             # gather across the ulysses sp group and drop the packed-sequence padding
             pad_size = output_args["pad_size"]

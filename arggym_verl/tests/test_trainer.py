@@ -1,5 +1,6 @@
 """The trainer mixins: the served-policy check (vLLM serving the adapter passes, vLLM
-serving the base fails), the curriculum feed, the auto-stop and the dev selection.
+serving the base fails), the curriculum feed, the auto-stop, the dev selection and the
+sampler match.
 
 The step-order tests run verl's own `PPOTrainer._step_once`, `step` and `fit` over
 stub passes that write to an in-memory transfer queue with the real one's field
@@ -13,8 +14,8 @@ import torch
 from omegaconf import OmegaConf
 
 from arggym_verl.trainer import (TRACK_FAIL, AutoStop, CurriculumFeedback, DevSelection,
-                                 RewardMetrics, ServedPolicyCheck, StopRule, check_served, install,
-                                 served_stats)
+                                 MatchSampler, RewardMetrics, ServedPolicyCheck, StopRule,
+                                 check_served, install, sampler_info, served_stats)
 
 
 def engines(serve_adapter: bool, shift: float = 0.02, noise: float = 0.08, n=(64, 512), seed=0):
@@ -84,7 +85,8 @@ def test_install_wraps_the_registered_mode():
 
     cls = install("colocate_async")
     assert get_trainer_cls("colocate_async") is cls
-    for mixin in (ServedPolicyCheck, CurriculumFeedback, RewardMetrics, AutoStop, DevSelection):
+    for mixin in (ServedPolicyCheck, CurriculumFeedback, RewardMetrics, AutoStop, DevSelection,
+                  MatchSampler):
         assert issubclass(cls, mixin), mixin
     assert issubclass(cls, PPOTrainerColocateAsync)
     assert install("colocate_async") is cls
@@ -242,6 +244,73 @@ def test_only_version_0_rollouts_do_not_arm(queue):
     trainer = Checked(queue, use_kl=True, serve_adapter=False, versions=[0] * 64)
     metrics = step(trainer)
     assert metrics["served/armed"] == 0.0 and trainer.calls[-1] == "update"
+
+
+# ---------------------------------------------------------------- the sampler match in verl's step order
+
+
+class Recording(StubPasses):
+    """Records the batch's extra_info as each log-prob pass hands it to the workers."""
+
+    def __init__(self, *args, match_sampler, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.config = OmegaConf.merge(self.config, {"actor_rollout_ref": {
+            "actor": {"match_sampler": match_sampler},
+            "rollout": {"top_k": 20, "top_p": 0.95, "agent": {"agent_loop_config_path": None}}}})
+        self.sent = {}
+
+    def _compute_old_log_prob(self, batch, metrics):
+        self.sent["old"] = dict(batch.extra_info)
+        return super()._compute_old_log_prob(batch, metrics)
+
+    def _compute_ref_log_prob(self, batch, metrics):
+        self.sent["ref"] = dict(batch.extra_info)
+        return super()._compute_ref_log_prob(batch, metrics)
+
+    def _update_actor(self, batch, metrics):
+        self.sent["update"] = dict(batch.extra_info)
+        return super()._update_actor(batch, metrics)
+
+
+class Matched(ServedPolicyCheck, MatchSampler, Recording):
+    pass
+
+
+@pytest.mark.parametrize("use_kl", [True, False])
+def test_match_sampler_reaches_every_trainer_log_prob_pass(queue, use_kl):
+    """Old log-probs, the reference pass (verl's, or the served check's own without a KL loss)
+    and the update all carry the keys verl's log-prob path reads."""
+    trainer = Matched(queue, use_kl=use_kl, serve_adapter=True, versions=[2] * 64,
+                      match_sampler={"presence_penalty": False, "mask": True})
+    step(trainer)
+    assert trainer.calls == ["old", "ref", "adv", "update"]
+    for name in ("old", "ref", "update"):
+        assert {k: v for k, v in trainer.sent[name].items() if k.startswith("sampler_")} \
+            == {"sampler_top_k": 20, "sampler_top_p": 0.95}, name
+
+
+def test_match_sampler_off_sends_nothing(queue):
+    trainer = Matched(queue, use_kl=True, serve_adapter=True, versions=[2] * 64,
+                      match_sampler={"presence_penalty": False, "mask": False})
+    step(trainer)
+    assert not any(k.startswith("sampler_") for sent in trainer.sent.values() for k in sent)
+
+
+def test_match_sampler_refuses_sampling_it_does_not_reproduce(tmp_path):
+    loops = tmp_path / "loops.yaml"
+    loops.write_text("- name: train\n  sampling: {presence_penalty: 1.5, repetition_penalty: 1.1}\n")
+    cfg = OmegaConf.create({"actor_rollout_ref": {
+        "actor": {"match_sampler": {"presence_penalty": True, "mask": False}},
+        "rollout": {"temperature": 1.0, "top_k": 20, "top_p": 0.95,
+                    "agent": {"agent_loop_config_path": str(loops)}}}})
+    with pytest.raises(ValueError, match="repetition_penalty"):
+        sampler_info(cfg)
+    loops.write_text("- name: train\n  sampling: {presence_penalty: 1.5, temperature: 0.6}\n")
+    with pytest.raises(ValueError, match="temperature"):
+        sampler_info(cfg)
+    loops.write_text("- name: train\n  sampling: {presence_penalty: 1.5, top_k: 10}\n")
+    cfg.actor_rollout_ref.actor.match_sampler.mask = True
+    assert sampler_info(cfg) == {"sampler_presence_penalty": 1.5, "sampler_top_k": 10, "sampler_top_p": 0.95}
 
 
 # ---------------------------------------------------------------- the curriculum in verl's step order

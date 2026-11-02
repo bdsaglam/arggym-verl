@@ -267,6 +267,16 @@ hyperparameters:
   `trainer_separate_async.py`'s `hybrid_engine=False` branch. Not on this
   run's path.
 - `vllm_async_server.py`, `generate`: the adapter check above.
+- `actor.match_sampler` (`verl/utils/sampler_logprobs.py`, wired into the FSDP
+  engine's packed log-prob path, `transformer_impl.prepare_model_outputs`): off
+  by default. With `presence_penalty` and/or `mask` on, the trainer's log-probs
+  of rollout tokens are the sampled distribution's: per response position, the
+  presence penalty on the tokens of the response before it (vLLM counts output
+  tokens only, `vllm/model_executor/layers/utils.py`, `apply_penalties`), then
+  top-k and top-p as vLLM's Triton kernel applies them, then the log-softmax over
+  that support. `arggym_verl.trainer.MatchSampler` passes the training rollouts'
+  values in each log-prob pass's batch (old, reference, update). Entropy stays
+  the full distribution's.
 
 ## Repo and environment
 
@@ -596,6 +606,10 @@ v2 changed. `arggym-qwen3.5-4b-v3-lr3e-5-kl.yaml` is v3 at 3e-5 with 0.001 back,
 read out on entropy over steps 11-15 (a rise of 0.03 or less against +0.124).
 Trainer-side sampling (applying the penalty and the top-k/top-p mask in the
 trainer's logprobs) is the root fix if the term alone is not enough.
+`arggym-qwen3.5-4b-v3-lr3e-5-matched.yaml` is v3 at 3e-5 with both
+(`actor.match_sampler`, "Patches to verl"), read out on `rollout_corr/kl` at
+step 1 (0.002 or less against 0.042) and entropy over steps 11-12 against
+steps 1-5 (a rise of 0.03 or less).
 
 ## Curriculum
 

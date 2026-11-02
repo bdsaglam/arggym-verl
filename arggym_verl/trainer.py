@@ -1,15 +1,17 @@
 """verl's V1 trainer, plus a check that vLLM serves the policy being trained,
 with `data.curriculum` ArgGYM's curriculum sampler, the step's paid reward beside
 its exact success, with `trainer.auto_stop` a clean stop when the policy drifts,
-and a `selection.json` kept current after every dev evaluation.
+a `selection.json` kept current after every dev evaluation, and with
+`actor.match_sampler` the trainer's log-probs taken under the training rollouts'
+sampling.
 
 `install(mode)` replaces the trainer registered for `mode` by a subclass with
-`ServedPolicyCheck`, `CurriculumFeedback`, `RewardMetrics`, `AutoStop` and
-`DevSelection` mixed in;
+`ServedPolicyCheck`, `CurriculumFeedback`, `RewardMetrics`, `AutoStop`,
+`DevSelection` and `MatchSampler` mixed in;
 nothing else about the trainer changes, and the mode string stays verl's, so every
 branch verl takes on it is unchanged. Without `data.curriculum`,
 `CurriculumFeedback` does nothing; without `trainer.auto_stop`, `AutoStop` does
-nothing.
+nothing; with `actor.match_sampler` off, `MatchSampler` does nothing.
 
 Every training step has, for each sampled token, three log-probs: vLLM's
 (`rollout_log_probs`), the trainer's with the adapter (`old_log_probs`), and the
@@ -42,6 +44,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import torch
+import yaml
 
 #: The check arms when base (track 0) and adapter (track >= ~0.5) are this many SEs from TRACK_FAIL.
 TRACK_SE_ARM = 0.05
@@ -339,6 +342,76 @@ class DevSelection:
         return val
 
 
+#: The agent loop training rows name (`agent_name`, arggym_verl/data.py).
+TRAIN_LOOP = "train"
+#: Sampling settings vLLM would apply that the trainer does not reproduce, at their no-op values.
+UNMATCHED = {"frequency_penalty": 0.0, "repetition_penalty": 1.0, "min_p": 0.0, "logit_bias": None}
+
+
+def training_sampling(config) -> Dict[str, Any]:
+    """What reaches vLLM for a training row: rollout.temperature/top_p/top_k with the training
+    agent loop's `sampling` merged over them (arggym_verl/agent_loop.py)."""
+    r = config.actor_rollout_ref.rollout
+    sampling = {"temperature": r.temperature, "top_p": r.top_p, "top_k": r.top_k}
+    path = r.get("agent", {}).get("agent_loop_config_path")
+    if path:
+        loops = {a["name"]: a for a in yaml.safe_load(open(path))}
+        sampling.update(loops.get(TRAIN_LOOP, {}).get("sampling") or {})
+    return sampling
+
+
+def sampler_info(config) -> Dict[str, Any]:
+    """The batch keys verl's log-prob path reads (verl/utils/sampler_logprobs.py) for
+    `actor.match_sampler`: the training rollouts' presence penalty, top-k and top-p."""
+    m = config.actor_rollout_ref.actor.get("match_sampler") or {}
+    if not (m.get("presence_penalty") or m.get("mask")):
+        return {}
+    s = training_sampling(config)
+    if s["temperature"] != config.actor_rollout_ref.rollout.temperature:
+        raise ValueError(f"the training agent loop samples at temperature {s['temperature']}, the "
+                         f"trainer divides by rollout.temperature {config.actor_rollout_ref.rollout.temperature}")
+    off = {k: s[k] for k, v in UNMATCHED.items() if s.get(k, v) != v}
+    if off:
+        raise ValueError(f"actor.match_sampler does not reproduce {off}")
+    info = {}
+    if m.get("presence_penalty"):
+        info["sampler_presence_penalty"] = float(s.get("presence_penalty", 0.0))
+    if m.get("mask"):
+        info["sampler_top_k"] = int(s["top_k"])
+        info["sampler_top_p"] = float(s["top_p"])
+    return info
+
+
+class MatchSampler:
+    """With `actor.match_sampler`, every log-prob the trainer computes for rollout tokens is
+    taken under the training rollouts' sampling: the presence penalty on tokens already in the
+    response (`presence_penalty`), and the top-k / top-p support (`mask`), as vLLM samples them
+    and as its `processed_logprobs` are. That covers old_log_probs (and through them the IS
+    weight and rollout_corr/*), the update's log-probs, and the reference pass, so the KL term
+    and the served-policy check compare like with like. Entropy stays the full distribution's.
+
+    The values ride in the batch's extra_info, which verl hands each worker call as non-tensor
+    data; verl's FSDP log-prob path applies them (verl/utils/sampler_logprobs.py).
+    """
+
+    def _with_sampler_info(self, batch):
+        if not hasattr(self, "_sampler_info"):
+            self._sampler_info = sampler_info(self.config)
+        batch.extra_info.update(self._sampler_info)
+
+    def _compute_old_log_prob(self, batch, metrics: dict):
+        self._with_sampler_info(batch)
+        return super()._compute_old_log_prob(batch, metrics)
+
+    def _compute_ref_log_prob(self, batch, metrics: dict):
+        self._with_sampler_info(batch)
+        return super()._compute_ref_log_prob(batch, metrics)
+
+    def _update_actor(self, batch, metrics: dict):
+        self._with_sampler_info(batch)
+        return super()._update_actor(batch, metrics)
+
+
 def _metrics_records() -> List[Dict[str, Any]]:
     """The run's metrics records so far, oldest first: verl's file logger
     (`VERL_FILE_LOGGER_PATH`, set by run.sh) truncates its file at each launch, and run.sh
@@ -366,6 +439,6 @@ def install(mode: str) -> type:
         return base
     checked = type(f"Checked{base.__name__}",
                    (ServedPolicyCheck, CurriculumFeedback, RewardMetrics, AutoStop, DevSelection,
-                    base), {})
+                    MatchSampler, base), {})
     trainer_base.TRAINER_REGISTRY[mode] = checked
     return checked

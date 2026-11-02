@@ -33,6 +33,7 @@ from .model import HFModelConfig
 from .optimizer import OptimizerConfig
 
 __all__ = [
+    "MatchSamplerConfig",
     "PolicyLossConfig",
     "RouterReplayConfig",
     "ActorConfig",
@@ -102,6 +103,24 @@ class PolicyLossConfig(BaseConfig):
 
 
 @dataclass
+class MatchSamplerConfig(BaseConfig):
+    """Which of the rollout sampler's transforms the trainer applies before its log-softmax.
+
+    The trainer's log-probs of rollout tokens (old, reference and the update's) then follow
+    the distribution the rollout sampled from instead of the plain softmax. The values are
+    the trainer's to pass in the batch (``sampler_presence_penalty``, ``sampler_top_k``,
+    ``sampler_top_p``; see verl/utils/sampler_logprobs.py).
+
+    Args:
+        presence_penalty (bool): Subtract the presence penalty from every token already in the response.
+        mask (bool): Keep only the top-k / top-p support and renormalise over it.
+    """
+
+    presence_penalty: bool = False
+    mask: bool = False
+
+
+@dataclass
 class ActorConfig(BaseConfig):
     """Configuration for actor model training.
 
@@ -135,6 +154,7 @@ class ActorConfig(BaseConfig):
         checkpoint (CheckpointConfig): Configuration for checkpointing.
         optim (OptimizerConfig): Configuration for optimizer.
         use_fused_kernels (bool): Whether to use custom fused kernels (e.g., FlashAttention, fused MLP).
+        match_sampler (MatchSamplerConfig): The rollout sampler's transforms applied to the trainer's log-probs.
         data_loader_seed (int): Seed for data loader. If None, uses global seed.
     """
 
@@ -168,6 +188,7 @@ class ActorConfig(BaseConfig):
     tau_neg: float = 1.05
     calculate_entropy: bool = False
     calculate_sum_pi_squared: bool = False
+    match_sampler: MatchSamplerConfig = field(default_factory=MatchSamplerConfig)
     use_kl_loss: bool = False
     # Whether to enable PrefixGrouper-based shared-prefix forward
     use_prefix_grouper: bool = False
