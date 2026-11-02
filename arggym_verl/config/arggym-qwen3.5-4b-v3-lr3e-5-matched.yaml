@@ -29,3 +29,7 @@ actor_rollout_ref:
 
 trainer:
   experiment_name: arggym-qwen3.5-4b-v3-lr3e-5-matched
+  # Matched, rollout_corr/kl is the engines' numeric gap, ~0.002 rather than ~0.044, and twice
+  # that is within its noise. Ten times keeps the stop near the unmatched runs' ~0.02-0.09 range.
+  auto_stop:
+    rollout_kl_factor: 10.0

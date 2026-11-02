@@ -583,7 +583,8 @@ def test_v3_lr3e5_nomask_is_the_3e5_run_without_top_k_top_p():
 
 
 def test_v3_lr3e5_matched_is_the_3e5_run_with_the_trainer_matching_the_sampler():
-    """The matched run is v3 at 3e-5 but for actor.match_sampler (penalty and mask) and its name.
+    """The matched run is v3 at 3e-5 but for actor.match_sampler (penalty and mask), a looser
+    rollout_corr/kl stop and its name.
     The values the trainer applies are the ones that reach vLLM for a training row, and verl's
     actor config accepts the switch."""
     from hydra import compose, initialize_config_dir
@@ -598,7 +599,9 @@ def test_v3_lr3e5_matched_is_the_3e5_run_with_the_trainer_matching_the_sampler()
     old, new = (_flat(OmegaConf.to_container(c, resolve=False)) for c in (fast, matched))
     changed = {k for k in old.keys() | new.keys() if old.get(k, "absent") != new.get(k, "absent")}
     assert changed == {"actor_rollout_ref.actor.match_sampler.presence_penalty",
-                       "actor_rollout_ref.actor.match_sampler.mask", "trainer.experiment_name"}
+                       "actor_rollout_ref.actor.match_sampler.mask", "trainer.experiment_name",
+                       "trainer.auto_stop.rollout_kl_factor"}
+    assert matched.trainer.auto_stop.rollout_kl_factor == 10.0
     assert matched.trainer.experiment_name == "arggym-qwen3.5-4b-v3-lr3e-5-matched"
     sent = sampling_sent(matched, validate=False)
     assert sampler_info(matched) == {"sampler_presence_penalty": sent["presence_penalty"],
