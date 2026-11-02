@@ -10,7 +10,9 @@
 # reference pass all subtract 1.5 from the logits of tokens already in the response and keep
 # only the top-k 20 / top-p 0.95 support before the log-softmax (arggym_verl/trainer.py,
 # MatchSampler; verl/utils/sampler_logprobs.py). Entropy is still logged on the full
-# distribution, comparable with the earlier runs.
+# distribution, comparable with the earlier runs; actor/sampler_entropy is the sampled
+# distribution's (penalty and support), which the full one can drift away from because
+# tokens outside the support get no gradient.
 # Read-out: rollout_corr/kl at step 1 drops from ~0.042 to 0.002 or less, and entropy over
 # steps 11-12 against steps 1-5 rises by 0.03 or less, against v3 at 3e-5's +0.11 at step 12
 # (design.md, "Entropy drift and the KL term").

@@ -1459,8 +1459,9 @@ class FSDPEngineWithLMHead(FSDPEngine):
                         inplace_backward = False
                     if sampler.active:
                         # The rollout's distribution (penalty, top-k, top-p) rather than the plain
-                        # softmax; entropy above stays the full distribution's.
-                        log_probs = sampler_log_probs(
+                        # softmax; entropy above stays the full distribution's, and with it the
+                        # sampled distribution's comes back as sampler_entropy.
+                        sampled = sampler_log_probs(
                             logits=logits_rmpad,
                             labels=input_ids_rmpad_rolled,
                             params=sampler,
@@ -1469,7 +1470,9 @@ class FSDPEngineWithLMHead(FSDPEngine):
                             input_ids=input_ids.values(),
                             temperature=temperature_rmpad,
                             inplace_backward=inplace_backward,
+                            with_entropy=calculate_entropy,
                         )
+                        log_probs, sampler_entropy_rmpad = sampled if calculate_entropy else (sampled, None)
                     else:
                         log_probs = logprobs_from_logits(
                             logits=logits_rmpad,
@@ -1491,6 +1494,11 @@ class FSDPEngineWithLMHead(FSDPEngine):
                 # (bsz, j1), for each sample, is the length of each sample: [real_prompt length + real_response length]
                 if not distillation_only:
                     log_probs = torch.nested.nested_tensor_from_jagged(log_probs, cu_seqlens)
+                    if sampler.active and calculate_entropy:
+                        sampler_entropy_rmpad = self._gather_and_unpad_packed(sampler_entropy_rmpad, pad_size)
+                        model_output["sampler_entropy"] = torch.nested.nested_tensor_from_jagged(
+                            sampler_entropy_rmpad, cu_seqlens
+                        )
                 if calculate_entropy:
                     entropy = torch.nested.nested_tensor_from_jagged(entropy_rmpad, cu_seqlens)
                 if calculate_sum_pi_squared:

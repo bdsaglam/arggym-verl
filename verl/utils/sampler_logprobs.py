@@ -44,6 +44,11 @@ float32 once; nothing of size tokens x vocabulary is kept beyond the logits and 
 gradient. The penalty is scattered over the tokens the chunk's last row has seen
 (``first_seen``: each token's first position in the response), so no seen-mask of size
 tokens x vocabulary is built. With top-k the backward is sparse: k + 1 entries a row.
+
+On request the same loop also gives each row's entropy under the sampled distribution
+(``with_entropy``): over the support with top-k, where it is k + 1 entries a row, over
+the penalised vocabulary without. The full-vocabulary entropy verl logs moves with
+tokens the sampler never draws; this one does not.
 """
 
 from dataclasses import dataclass
@@ -162,10 +167,11 @@ def _support(z: torch.Tensor, params: SamplerParams):
 
 class SamplerLogProbs(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, logits, labels, penalty, pos, first, cu_seqlens, params, inplace_backward):
+    def forward(ctx, logits, labels, penalty, pos, first, cu_seqlens, params, inplace_backward, with_entropy):
         num_rows = logits.shape[0]
         lse = torch.empty(num_rows, dtype=torch.float32, device=logits.device)
         label_logit = torch.empty_like(lse)
+        entropy = torch.empty(num_rows if with_entropy else 0, dtype=torch.float32, device=logits.device)
         if params.masks:
             k = min(params.top_k, logits.shape[1])
             support_vals = torch.empty(num_rows, k, dtype=torch.float32, device=logits.device)
@@ -177,21 +183,27 @@ class SamplerLogProbs(torch.autograd.Function):
                 vals, idx = _support(z, params)
                 inside = ((idx == labels[a:b].unsqueeze(1)) & (vals > float("-inf"))).any(dim=1)
                 added = torch.where(inside, float("-inf"), y).unsqueeze(1)
-                lse[a:b] = torch.cat([vals, added], dim=1).logsumexp(dim=1)
+                support = torch.cat([vals, added], dim=1)
+                lse[a:b] = support.logsumexp(dim=1)
+                if with_entropy:
+                    entropy[a:b] = torch.special.entr((support - lse[a:b].unsqueeze(1)).exp()).sum(dim=1)
                 support_vals[a:b], support_idx[a:b] = vals, idx
             else:
                 lse[a:b] = z.logsumexp(dim=1)
+                if with_entropy:
+                    entropy[a:b] = torch.special.entr(z.sub_(lse[a:b].unsqueeze(1)).exp_()).sum(dim=1)
             label_logit[a:b] = y
             del z
         out = label_logit - lse
+        ctx.mark_non_differentiable(entropy)
         ctx.params, ctx.cu_seqlens, ctx.inplace_backward = params, cu_seqlens, inplace_backward
         saved = [logits, labels, lse, label_logit]
         saved += [support_vals, support_idx] if params.masks else [penalty, pos, first]
         ctx.save_for_backward(*saved)
-        return out
+        return out, entropy
 
     @staticmethod
-    def backward(ctx, grad_out):
+    def backward(ctx, grad_out, grad_entropy):
         params = ctx.params
         logits, labels, lse, label_logit, *rest = ctx.saved_tensors
         g = grad_out.float()
@@ -211,7 +223,7 @@ class SamplerLogProbs(torch.autograd.Function):
                 grad[a:b] = z.to(grad.dtype)
                 del z
         grad.scatter_(1, labels.unsqueeze(1), label_grad.to(grad.dtype))
-        return grad, None, None, None, None, None, None, None
+        return grad, None, None, None, None, None, None, None, None
 
 
 def sampler_log_probs(
@@ -223,7 +235,8 @@ def sampler_log_probs(
     input_ids: torch.Tensor,
     temperature: Optional[torch.Tensor] = None,
     inplace_backward: bool = True,
-) -> torch.Tensor:
+    with_entropy: bool = False,
+):
     """Log-probs of `labels` under vLLM's sampling distribution, from packed logits.
 
     Args:
@@ -238,9 +251,11 @@ def sampler_log_probs(
             subtracts the penalty before dividing, so it enters as penalty / temperature.
         inplace_backward: write the gradient into `logits`, as flash-attn's cross-entropy
             does; only when nothing else needs the logits in the backward.
+        with_entropy: also return each row's entropy under the same distribution.
 
     Returns:
-        (rows,) float32 log-probs.
+        (rows,) float32 log-probs; with `with_entropy`, (log-probs, entropies), the
+        entropies without gradient.
     """
     num_rows, vocab_size = logits.shape
     first = None
@@ -251,4 +266,7 @@ def sampler_log_probs(
         penalty = torch.full((num_rows,), params.presence_penalty, dtype=torch.float32, device=logits.device)
         if temperature is not None:
             penalty = penalty / temperature.float()
-    return SamplerLogProbs.apply(logits, labels, penalty, pos, first, cu_seqlens, params, inplace_backward)
+    log_probs, entropy = SamplerLogProbs.apply(
+        logits, labels, penalty, pos, first, cu_seqlens, params, inplace_backward, with_entropy
+    )
+    return (log_probs, entropy) if with_entropy else log_probs

@@ -277,23 +277,51 @@ class Matched(ServedPolicyCheck, MatchSampler, Recording):
 
 
 @pytest.mark.parametrize("use_kl", [True, False])
-def test_match_sampler_reaches_every_trainer_log_prob_pass(queue, use_kl):
+def test_match_sampler_reaches_every_trainer_log_prob_pass(queue, use_kl, monkeypatch):
     """Old log-probs, the reference pass (verl's, or the served check's own without a KL loss)
-    and the update all carry the keys verl's log-prob path reads."""
+    and the update all carry the keys verl's log-prob path reads; the old pass's metrics get
+    the sampled distribution's entropy."""
+    monkeypatch.setattr(MatchSampler, "_sampler_entropy", lambda self, batch: 0.25)
     trainer = Matched(queue, use_kl=use_kl, serve_adapter=True, versions=[2] * 64,
                       match_sampler={"presence_penalty": False, "mask": True})
-    step(trainer)
+    metrics = step(trainer)
     assert trainer.calls == ["old", "ref", "adv", "update"]
     for name in ("old", "ref", "update"):
         assert {k: v for k, v in trainer.sent[name].items() if k.startswith("sampler_")} \
             == {"sampler_top_k": 20, "sampler_top_p": 0.95}, name
+    assert metrics["actor/sampler_entropy"] == 0.25
 
 
 def test_match_sampler_off_sends_nothing(queue):
     trainer = Matched(queue, use_kl=True, serve_adapter=True, versions=[2] * 64,
                       match_sampler={"presence_penalty": False, "mask": False})
-    step(trainer)
+    metrics = step(trainer)
     assert not any(k.startswith("sampler_") for sent in trainer.sent.values() for k in sent)
+    assert "actor/sampler_entropy" not in metrics
+
+
+def nested(rows):
+    return torch.nested.as_nested_tensor([torch.tensor(r) for r in rows], layout=torch.jagged)
+
+
+def test_sampler_entropy_is_aggregated_over_response_tokens_as_verls_entropy(monkeypatch):
+    """The old pass's sampler_entropy (prompt and response rows, as verl's log-prob path
+    returns them) is read at the rows that predict response tokens and token-averaged."""
+    import transfer_queue
+
+    # two sequences, prompts of 2 and 1 tokens, responses of 3 and 2: row j predicts token j + 1
+    queued = {"sampler_entropy": nested([[9.0, 1.0, 2.0, 3.0, 9.0], [1.0, 5.0, 9.0]]),
+              "response_mask": nested([[1, 1, 1], [1, 1]])}
+    monkeypatch.setattr(transfer_queue, "kv_batch_get",
+                        lambda keys, partition_id, select_fields: {f: queued[f] for f in select_fields
+                                                                   if f in queued})
+    trainer = SimpleNamespace(config=OmegaConf.create(
+        {"actor_rollout_ref": {"actor": {"loss_agg_mode": "token-mean", "loss_scale_factor": None}}}))
+    batch = SimpleNamespace(keys=["a", "b"], partition_id="train")
+    assert MatchSampler._sampler_entropy(trainer, batch) == pytest.approx((1 + 2 + 3 + 1 + 5) / 5)
+    del queued["sampler_entropy"]  # a pass that ran on the plain softmax returns none
+    with pytest.raises(RuntimeError, match="plain softmax"):
+        MatchSampler._sampler_entropy(trainer, batch)
 
 
 def test_match_sampler_refuses_sampling_it_does_not_reproduce(tmp_path):

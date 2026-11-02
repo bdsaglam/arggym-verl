@@ -388,10 +388,16 @@ class MatchSampler:
     response (`presence_penalty`), and the top-k / top-p support (`mask`), as vLLM samples them
     and as its `processed_logprobs` are. That covers old_log_probs (and through them the IS
     weight and rollout_corr/*), the update's log-probs, and the reference pass, so the KL term
-    and the served-policy check compare like with like. Entropy stays the full distribution's.
+    and the served-policy check compare like with like. Entropy stays the full distribution's;
+    `actor/sampler_entropy` beside it is the sampled distribution's, aggregated as verl
+    aggregates `actor/entropy`. With the mask on, tokens outside the support get no gradient,
+    so the full-vocabulary entropy can move while the distribution the rollouts draw from
+    does not.
 
     The values ride in the batch's extra_info, which verl hands each worker call as non-tensor
-    data; verl's FSDP log-prob path applies them (verl/utils/sampler_logprobs.py).
+    data; verl's FSDP log-prob path applies them (verl/utils/sampler_logprobs.py) and returns
+    `sampler_entropy` from the old-log-prob pass. A pass that ran without them returns none,
+    and the step fails rather than train on the plain softmax.
     """
 
     def _with_sampler_info(self, batch):
@@ -401,7 +407,28 @@ class MatchSampler:
 
     def _compute_old_log_prob(self, batch, metrics: dict):
         self._with_sampler_info(batch)
-        return super()._compute_old_log_prob(batch, metrics)
+        batch = super()._compute_old_log_prob(batch, metrics)
+        if self._sampler_info:
+            metrics["actor/sampler_entropy"] = self._sampler_entropy(batch)
+        return batch
+
+    def _sampler_entropy(self, batch) -> float:
+        import transfer_queue as tq
+        from verl.trainer.ppo.core_algos import agg_loss
+        from verl.workers.utils.padding import response_from_nested
+
+        fields = ["sampler_entropy", "response_mask"]
+        data = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=fields)
+        if "sampler_entropy" not in data.keys():
+            raise RuntimeError("actor.match_sampler is on but the old-log-prob pass returned no "
+                               "sampler_entropy: the trainer's log-probs are the plain softmax's")
+        mask = data["response_mask"]
+        entropy = response_from_nested(data["sampler_entropy"], mask)
+        actor = self.config.actor_rollout_ref.actor
+        return agg_loss(loss_mat=torch.nested.to_padded_tensor(entropy, 0.0),
+                        loss_mask=torch.nested.to_padded_tensor(mask, 0),
+                        loss_agg_mode=actor.loss_agg_mode,
+                        loss_scale_factor=actor.get("loss_scale_factor")).item()
 
     def _compute_ref_log_prob(self, batch, metrics: dict):
         self._with_sampler_info(batch)

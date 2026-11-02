@@ -276,7 +276,8 @@ hyperparameters:
   top-k and top-p as vLLM's Triton kernel applies them, then the log-softmax over
   that support. `arggym_verl.trainer.MatchSampler` passes the training rollouts'
   values in each log-prob pass's batch (old, reference, update). Entropy stays
-  the full distribution's.
+  the full distribution's; `actor/sampler_entropy`, from the old-log-prob pass,
+  is the sampled distribution's, and its absence fails the step.
 
 ## Repo and environment
 

@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from verl.utils import sampler_logprobs
 from verl.utils.sampler_logprobs import CHUNK_ROWS, TIE_CANDIDATES, SamplerParams, sampler_log_probs
 
 CARD = SamplerParams(presence_penalty=1.5, top_k=20, top_p=0.95)
@@ -26,11 +27,13 @@ def pack(prompts, responses):
     return torch.cat(seqs), cu, [len(p) for p in prompts]
 
 
-def reference(logits, input_ids, cu, prompt_lens, params, temperature=1.0):
+def reference(logits, input_ids, cu, prompt_lens, params, temperature=1.0, with_entropy=False):
     """Row by row, the module's rule from the raw logits in vLLM's order: penalty, temperature,
-    top-k (ties to the lower id), top-p prefix, the label added if outside, log-softmax."""
+    top-k (ties to the lower id), top-p prefix, the label added if outside, log-softmax; with
+    `with_entropy`, also the entropy of that distribution."""
     labels = torch.roll(input_ids, -1)
     out = torch.empty(logits.shape[0], dtype=torch.float64)
+    entropy = torch.empty_like(out)
     for s, p in enumerate(prompt_lens):
         for i in range(cu[s], cu[s + 1]):
             r = i - cu[s] + 1 - p  # response position of the token row i predicts
@@ -53,14 +56,15 @@ def reference(logits, input_ids, cu, prompt_lens, params, temperature=1.0):
                 support = set(range(len(z)))
             idx = torch.tensor(sorted(support))
             out[i] = z[y] - torch.logsumexp(z[idx], 0)
-    return out
+            entropy[i] = torch.special.entr(torch.softmax(z[idx], 0)).sum()
+    return (out, entropy) if with_entropy else out
 
 
-def run(logits, input_ids, cu, prompt_lens, params, temperature=1.0, inplace=False):
+def run(logits, input_ids, cu, prompt_lens, params, temperature=1.0, inplace=False, with_entropy=False):
     rows = logits.shape[0]
     t = torch.full((rows,), float(temperature))
     return sampler_log_probs(logits / temperature, torch.roll(input_ids, -1), params, cu, prompt_lens,
-                             input_ids, temperature=t, inplace_backward=inplace)
+                             input_ids, temperature=t, inplace_backward=inplace, with_entropy=with_entropy)
 
 
 def random_batch(seed, vocab=60, lens=((5, 40), (3, 25), (7, 1))):
@@ -189,14 +193,21 @@ def test_a_sampled_token_outside_the_support_stays_finite():
 
 @pytest.mark.parametrize("params", [CARD, SamplerParams(presence_penalty=1.5)])
 @pytest.mark.parametrize("inplace", [False, True])
-def test_gradient_matches_autograd_through_the_dense_reference(params, inplace):
+@pytest.mark.parametrize("chunk_rows, dtype", [(CHUNK_ROWS, torch.float32), (7, torch.float32), (7, torch.bfloat16)])
+def test_gradient_matches_autograd_through_the_dense_reference(params, inplace, chunk_rows, dtype, monkeypatch):
+    """Also with chunks of 7 rows, so the backward's chunk loop crosses sequences' rows, and on
+    BF16 logits, as the trainer's are: a coarse grid with ties, the gradient in BF16."""
+    monkeypatch.setattr(sampler_logprobs, "CHUNK_ROWS", chunk_rows)
     logits, input_ids, cu, prompt_lens = random_batch(4)
-    temperature = 0.7
+    logits = logits.to(dtype)
+    temperature = 1.0 if dtype == torch.bfloat16 else 0.7  # verl divides BF16 logits in BF16
     labels = torch.roll(input_ids, -1)
     weights = torch.randn(len(input_ids), generator=torch.Generator().manual_seed(5))
 
     x = logits.clone().requires_grad_()
-    (run(x, input_ids, cu, prompt_lens, params, temperature, inplace) * weights).sum().backward()
+    lp, _ = run(x, input_ids, cu, prompt_lens, params, temperature, inplace, with_entropy=True)
+    (lp * weights).sum().backward()
+    assert x.grad.dtype == dtype
 
     # Dense: the same transforms as constants (seen mask, support), autograd through the rest.
     y = logits.clone().double().requires_grad_()
@@ -217,7 +228,24 @@ def test_gradient_matches_autograd_through_the_dense_reference(params, inplace):
                 support[keep + [int(labels[i])]] = True
             total = total + weights[i] * (z[labels[i]] - torch.logsumexp(z.masked_fill(~support, -math.inf), 0))
     total.backward()
-    torch.testing.assert_close(x.grad.double(), y.grad, atol=1e-5, rtol=1e-4)
+    tol = dict(atol=1e-5, rtol=1e-4) if dtype == torch.float32 else dict(atol=1e-2, rtol=1e-2)
+    torch.testing.assert_close(x.grad.double(), y.grad, **tol)
+
+
+@pytest.mark.parametrize("params", [CARD, SamplerParams(presence_penalty=1.5), SamplerParams(top_k=7)])
+@pytest.mark.parametrize("chunk_rows", [CHUNK_ROWS, 7])
+def test_entropy_is_the_sampled_distributions(params, chunk_rows, monkeypatch):
+    """The entropy returned beside the log-probs is the reference distribution's: over the
+    support with the sampled token, after the penalty; the log-probs are unchanged by asking."""
+    monkeypatch.setattr(sampler_logprobs, "CHUNK_ROWS", chunk_rows)
+    logits, input_ids, cu, prompt_lens = random_batch(8)
+    lp, entropy = run(logits, input_ids, cu, prompt_lens, params, 0.7, with_entropy=True)
+    want_lp, want_entropy = reference(logits, input_ids, cu, prompt_lens, params, 0.7, with_entropy=True)
+    torch.testing.assert_close(lp.double(), want_lp, atol=1e-5, rtol=0)
+    torch.testing.assert_close(entropy.double(), want_entropy, atol=1e-5, rtol=0)
+    torch.testing.assert_close(run(logits, input_ids, cu, prompt_lens, params, 0.7), lp)
+    if params.masks:  # the support is at most k + 1 tokens
+        assert entropy.max().item() <= math.log(params.top_k + 1) + 1e-6
 
 
 def test_long_sequences_cross_chunks():
@@ -283,9 +311,15 @@ def test_verls_log_prob_path_applies_the_batch_keys(monkeypatch):
     want = reference(logits, input_ids, cu, prompt_lens, CARD)
     for s, p in enumerate(prompt_lens):
         torch.testing.assert_close(got[s].double(), want[cu[s] + p - 1 : cu[s + 1] - 1], atol=1e-5, rtol=0)
-    # entropy stays the full distribution's
+    # entropy stays the full distribution's; sampler_entropy is the sampled one's
     torch.testing.assert_close(out["entropy"].values(), torch.special.entr(logits.softmax(1)).sum(1))
-    plain, _ = engine_log_probs(logits, prompts, responses, {})
+    _, want_entropy = reference(logits, input_ids, cu, prompt_lens, CARD, with_entropy=True)
+    torch.testing.assert_close(out["sampler_entropy"].values().double(), want_entropy, atol=1e-5, rtol=0)
+    assert torch.equal(out["sampler_entropy"].offsets(), out["log_probs"].offsets())
+    _, out = engine_log_probs(logits, prompts, responses, keys)  # the reference and update passes
+    assert "sampler_entropy" not in out
+    plain, out = engine_log_probs(logits, prompts, responses, {}, calculate_entropy=True)
+    assert "sampler_entropy" not in out
     lsm = torch.log_softmax(logits, 1).gather(1, torch.roll(input_ids, -1).unsqueeze(1)).squeeze(1)
     for s, p in enumerate(prompt_lens):
         torch.testing.assert_close(plain[s], lsm[cu[s] + p - 1 : cu[s + 1] - 1])
