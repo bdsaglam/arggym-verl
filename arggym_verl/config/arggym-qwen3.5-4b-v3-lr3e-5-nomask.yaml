@@ -1,0 +1,23 @@
+# v3 at a peak LR of 3e-5 with training rollouts sampled without top-k/top-p: the presence
+# penalty 1.5 stays, so arggym-qwen3.5-4b-v3-lr3e-5.yaml but for top_p and top_k (E2).
+#
+# Why: the trainer computes log-probs on the full-vocabulary softmax, while vLLM samples from
+# the top-k 20 / top-p 0.95 support after the presence penalty. rollout_corr/kl, the gap
+# between the two, follows entropy in every run that drifted (R^2 0.89-0.99), and the KL term
+# at 0.001 did not slow the drift (entropy 0.708 at step 11, against 0.694 without it).
+# Dropping the support mask separates its share of the gap from the penalty's.
+# Read-out: entropy over steps 11-15 against steps 1-5 rising by 0.03 or less (mask drives
+# the drift) or by 0.08 or more (the penalty does), against v3 at 3e-5's +0.124
+# (design.md, "Entropy drift and the KL term"). Dev keeps the card's sampling.
+
+defaults:
+  - arggym-qwen3.5-4b-v3-lr3e-5
+  - _self_
+
+actor_rollout_ref:
+  rollout:
+    top_p: 1.0
+    top_k: -1
+
+trainer:
+  experiment_name: arggym-qwen3.5-4b-v3-lr3e-5-nomask

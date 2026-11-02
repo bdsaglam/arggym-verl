@@ -563,3 +563,20 @@ def test_v3_lr3e5_kl_is_the_3e5_run_with_the_kl_term():
     assert changed == {"actor_rollout_ref.actor.kl_loss_coef", "trainer.experiment_name"}
     a = kl.actor_rollout_ref.actor
     assert (a.use_kl_loss, a.kl_loss_coef, a.kl_loss_type) == (True, 0.001, "low_var_kl")
+
+
+def test_v3_lr3e5_nomask_is_the_3e5_run_without_top_k_top_p():
+    """The no-mask run is v3 at 3e-5 but for training top_p 1 and top_k -1; dev keeps the card's."""
+    from hydra import compose, initialize_config_dir
+    from omegaconf import OmegaConf
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        fast, nomask = (compose(config_name=n, overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+                        for n in ("arggym-qwen3.5-4b-v3-lr3e-5", "arggym-qwen3.5-4b-v3-lr3e-5-nomask"))
+    old, new = (_flat(OmegaConf.to_container(c, resolve=False)) for c in (fast, nomask))
+    changed = {k for k in old.keys() | new.keys() if old.get(k, "absent") != new.get(k, "absent")}
+    assert changed == {"actor_rollout_ref.rollout.top_p", "actor_rollout_ref.rollout.top_k",
+                       "trainer.experiment_name"}
+    r = nomask.actor_rollout_ref.rollout
+    assert (r.top_p, r.top_k, r.temperature) == (1.0, -1, 1.0)
+    assert (r.val_kwargs.top_p, r.val_kwargs.top_k) == (0.95, 20)
