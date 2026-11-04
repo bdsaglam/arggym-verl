@@ -583,34 +583,38 @@ the scheduler, and `fsdp_checkpoint_manager` (patched) then sets the optimizer's
 LR from the new run's scheduler, which a plain resume would overwrite with the
 saved run's. The continuation was stopped at step 23 for the KL run below.
 
-### Entropy drift and the KL term
+### Entropy drift and the matched trainer
 
-Every run with `kl_loss_coef` 0 (v2, the partial run, v3, v3 at 3e-5) drifts up
-in entropy, KL to base and `rollout_corr/kl` from step 1, and the drift follows
-the cumulative LR: v3 at 1e-5 reaches entropy 0.71 at step 40, v3 at 3e-5 at
-step 12. `rollout_corr/kl` follows entropy within a step (R² 0.89-0.99 per run):
-the sampler renormalises over top-k and top-p, so the gap to the trainer's
-full-vocabulary softmax grows as the policy flattens. Every run with 0.001
-(recipe, curriculum, the GSM8K control) holds entropy flat for 40-100 steps; at
-3e-5, entropy rose +0.017 over steps 11-15 with the term and +0.124 without.
+The training rollouts use the card's sampling, and vLLM returns the log-probs of
+the distribution it samples from: after the presence penalty, temperature and
+top-k/top-p (`processed_logprobs`). verl's trainer takes the plain softmax over
+the vocabulary (its top-k/top-p is a TODO, `verl/utils/torch_functional.py`).
+The IS weight and the PPO ratio then compare against a distribution the trainer
+cannot represent, and the update keeps pushing up tokens the penalty or the mask
+held down. Every run with this gap drifted up in entropy, KL to base and
+`rollout_corr/kl` from step 1, at a pace set by the cumulative LR: v3 at 1e-5
+reached entropy 0.71 at step 40, v3 at 3e-5 at step 12. `rollout_corr/kl`
+followed entropy within a step (R² 0.89-0.99 per run), and the collapses ended
+in ALL-CAPS lines and one-word loops, which a presence penalty favours.
 
-The likely source of the push is the card's sampling: vLLM's logprobs are taken
-after the presence penalty, temperature and top-k/top-p
-(`processed_logprobs`), while the trainer's are the plain softmax (verl's
-top-k/top-p is a TODO, `verl/utils/torch_functional.py`), so both the IS and
-the PPO ratio compare against a distribution the trainer cannot represent, and
-tokens outside top-k/top-p are never sampled. The curriculum run's collapse
-ended in ALL-CAPS lines and one-word loops, which a presence penalty favours.
+`arggym-qwen3.5-4b-v3-lr3e-5-matched.yaml` applies the sampler's transforms in
+the trainer (`actor.match_sampler`, "Patches to verl"). On the same 3e-5 recipe:
 
-v2 had removed the term; the comparison above is confounded by everything else
-v2 changed. `arggym-qwen3.5-4b-v3-lr3e-5-kl.yaml` is v3 at 3e-5 with 0.001 back,
-read out on entropy over steps 11-15 (a rise of 0.03 or less against +0.124).
-Trainer-side sampling (applying the penalty and the top-k/top-p mask in the
-trainer's logprobs) is the root fix if the term alone is not enough.
-`arggym-qwen3.5-4b-v3-lr3e-5-matched.yaml` is v3 at 3e-5 with both
-(`actor.match_sampler`, "Patches to verl"), read out on `rollout_corr/kl` at
-step 1 (0.002 or less against 0.042) and entropy over steps 11-12 against
-steps 1-5 (a rise of 0.03 or less).
+| Run | `rollout_corr/kl`, step 1 | Entropy, steps 1-5 → 11-12 | `actor/ppo_kl`, steps 9-12 | Dev, step 20 |
+|---|---|---|---|---|
+| Unmatched, KL term 0 | 0.042 | 0.610 → 0.706 | 2.1e-4 | 0.428 |
+| Unmatched, KL term 0.001 | 0.043 | 0.612 → 0.725 | 1.4e-4 | (stopped at 12) |
+| Unmatched, top-k/top-p off | 0.030 | (stopped at 1) | | |
+| Matched, KL term 0 | 0.0004 | 0.605 → 0.604 | 3.0e-5 | 0.418 |
+
+Matching removes the gap and the drift without slowing learning: dev at step 20
+is 0.418 against 0.428 unmatched (paired difference -0.010, bootstrap 95% CI
+-0.055 to 0.034, base 0.309). The KL term at 0.001 does not slow the drift, and
+the presence penalty is most of the gap (dropping the mask alone leaves 0.030).
+The matched run reaches the unmatched run's training success while moving half
+as far from the base (KL 0.0035 against 0.0077 over steps 13-16).
+`actor/sampler_entropy` is the sampled distribution's entropy; it stayed flat
+with the full one (0.503 → 0.502).
 
 ## Curriculum
 

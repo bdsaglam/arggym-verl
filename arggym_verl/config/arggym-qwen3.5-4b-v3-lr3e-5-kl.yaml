@@ -7,7 +7,7 @@
 # 3e-5, entropy rose +0.017 over steps 11-15 with the term and +0.124 without. The comparison
 # is confounded (v2 also changed curriculum, batch, schedule and data); this run isolates it.
 # Read-out: entropy over steps 11-15 rising by 0.03 or less, against v3 at 3e-5's +0.124
-# (design.md, "Entropy drift and the KL term").
+# (design.md, "Entropy drift and the matched trainer").
 
 defaults:
   - arggym-qwen3.5-4b-v3-lr3e-5

@@ -15,7 +15,7 @@
 # tokens outside the support get no gradient.
 # Read-out: rollout_corr/kl at step 1 drops from ~0.042 to 0.002 or less, and entropy over
 # steps 11-12 against steps 1-5 rises by 0.03 or less, against v3 at 3e-5's +0.11 at step 12
-# (design.md, "Entropy drift and the KL term").
+# (design.md, "Entropy drift and the matched trainer").
 
 defaults:
   - arggym-qwen3.5-4b-v3-lr3e-5
