@@ -325,14 +325,20 @@ class DevSelection:
 
     verl saves a step's checkpoint before it evaluates dev and logs the dev scores
     with the step's other metrics, after both. The file is written here, with the
-    evaluation's scores in hand, so it never trails the latest dev score.
+    evaluation's scores in hand, so it never trails the latest dev score. It also adds
+    each task's and each level's dev success (`dev-task/*`, `dev-level/*`) to the
+    logged dev metrics.
     """
 
     def _validate(self, *args, **kwargs):
+        from arggym_verl import report
+
         val = super()._validate(*args, **kwargs)
+        dump = self.config.trainer.get("validation_data_dir")
+        if val and dump and (Path(dump) / f"{self.global_steps}.jsonl").exists():
+            val.update(dev_breakdown(report.read_jsonl([Path(dump) / f"{self.global_steps}.jsonl"])))
         path = os.environ.get("VERL_FILE_LOGGER_PATH")
         if val and path:
-            from arggym_verl import report
 
             step = self.global_steps
             records = [r for r in _metrics_records() if r["step"] <= step]
@@ -340,6 +346,19 @@ class DevSelection:
             selection = report.select(curve, Path(self.config.trainer.default_local_dir))
             (Path(path).parent / "selection.json").write_text(json.dumps(selection, indent=2) + "\n")
         return val
+
+
+def dev_breakdown(rows: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Dev success by task and by level, from the rows verl dumps for one evaluation
+    (`trainer.validation_data_dir/<step>.jsonl`, one row per sample, `gts` the item id
+    task/level/ordering/seed). verl's own dev metrics group by data source, which is one
+    "arggym" for every row."""
+    groups: Dict[str, List[float]] = {}
+    for r in rows:
+        task, level = r["gts"].split("/")[:2]
+        for key in (f"dev-task/{task}", f"dev-level/{level}"):
+            groups.setdefault(key, []).append(float(r["acc"]))
+    return {k: sum(v) / len(v) for k, v in sorted(groups.items())}
 
 
 #: The agent loop training rows name (`agent_name`, arggym_verl/data.py).

@@ -801,3 +801,24 @@ def test_selection_is_written_with_the_dev_scores_just_evaluated(tmp_path, monke
     sel = json.loads((tmp_path / "selection.json").read_text())
     assert (sel["best_step"], sel["best_metric"], sel["base_metric"]) == (40, 0.48, 0.29)
     assert sel["dev"] == {"0": 0.29, "20": 0.41, "30": 0.40, "40": 0.48}
+
+
+def test_dev_scores_are_split_by_task_and_level(tmp_path, monkeypatch):
+    """With trainer.validation_data_dir set, the step's dumped dev rows add each task's and
+    each level's success beside verl's single arggym score; the selection is unchanged."""
+    import json
+
+    key = "val-core/arggym/acc/mean@8"
+    dump = tmp_path / "dev"
+    dump.mkdir()
+    rows = [("attack/L1/x/s1", 1.0), ("attack/L1/x/s1", 0.0), ("attack/L2/x/s2", 1.0),
+            ("claim_chain/L2/x/s3", 0.0)]
+    (dump / "40.jsonl").write_text("".join(json.dumps({"gts": g, "acc": a, "score": a}) + "\n" for g, a in rows))
+    monkeypatch.delenv("VERL_FILE_LOGGER_PATH", raising=False)
+    stub = Selecting(tmp_path / "checkpoints", 40, {key: 0.5})
+    stub.config.trainer.validation_data_dir = str(dump)
+    val = stub._validate()
+    assert val == {key: 0.5, "dev-task/attack": 2 / 3, "dev-task/claim_chain": 0.0,
+                   "dev-level/L1": 0.5, "dev-level/L2": 0.5}
+    # No dump for the step (or no dump directory): verl's metrics pass through unchanged.
+    assert Selecting(tmp_path / "checkpoints", 60, {key: 0.6})._validate() == {key: 0.6}
