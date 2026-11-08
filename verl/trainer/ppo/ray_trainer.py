@@ -443,7 +443,10 @@ class RayPPOTrainer:
         try:
             OmegaConf.set_struct(self.config, True)
             with open_dict(self.config):
-                if OmegaConf.select(self.config, "actor_rollout_ref.actor.optim"):
+                # A config that sets the schedule's length keeps it (a run continued from another's
+                # checkpoint decays over its own steps); -1, the default, means the run's.
+                actor_optim = OmegaConf.select(self.config, "actor_rollout_ref.actor.optim")
+                if actor_optim and actor_optim.get("total_training_steps", -1) in (-1, None):
                     self.config.actor_rollout_ref.actor.optim.total_training_steps = total_training_steps
                 if OmegaConf.select(self.config, "critic.optim"):
                     self.config.critic.optim.total_training_steps = total_training_steps

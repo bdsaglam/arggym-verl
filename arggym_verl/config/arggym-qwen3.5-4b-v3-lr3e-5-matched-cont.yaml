@@ -1,0 +1,33 @@
+# The matched run (arggym-qwen3.5-4b-v3-lr3e-5-matched.yaml) continued from its step-100
+# checkpoint for 100 more steps: a second cosine from 1e-5 to 1e-6, no warmup.
+#
+# Why: dev rose at every check of the matched run (0.309 at the base, 0.418, 0.447, 0.527,
+# 0.569 at steps 20-80) with entropy flat, and its cosine had taken the LR to 3e-6 by step 100.
+#
+# The run directory is seeded with the matched run's global_step_100 and its metrics up to
+# step 100 (scripts/arggym/seed_from.sh). load_contents [model, optimizer] keeps the adapter,
+# Adam's moments and the curriculum (data.pt is always loaded) and leaves the scheduler to this
+# config; fsdp_checkpoint_manager then gives the optimizer this scheduler's LR. The scheduler
+# starts at its own step 0 at step 101, so optim.total_training_steps 100 decays over steps
+# 101-200, while trainer.total_training_steps 200 ends the run at step 200.
+
+defaults:
+  - arggym-qwen3.5-4b-v3-lr3e-5-matched
+  - _self_
+
+actor_rollout_ref:
+  actor:
+    optim:
+      lr: 1.0e-5
+      lr_warmup_steps: 0
+      total_training_steps: 100
+    checkpoint:
+      # Only for the first launch from the seeded step-100 checkpoint; a relaunch after a crash
+      # resumes this run's own checkpoints and must load everything (load_contents=[model,optimizer,extra]).
+      load_contents: [model, optimizer]
+
+trainer:
+  # Step 100's dev is the matched run's, copied with its metrics.
+  val_before_train: false
+  total_training_steps: 200
+  experiment_name: arggym-qwen3.5-4b-v3-lr3e-5-matched-cont

@@ -582,6 +582,41 @@ def test_v3_lr3e5_nomask_is_the_3e5_run_without_top_k_top_p():
     assert (r.val_kwargs.top_p, r.val_kwargs.top_k) == (0.95, 20)
 
 
+def test_v3_lr3e5_matched_cont_decays_from_1e5_over_steps_101_to_200():
+    """The continuation is the matched run but for a second cosine (1e-5, no warmup, over its own
+    100 steps), the checkpoint contents it loads, no step-0 dev, 200 steps and its name. Its
+    scheduler, fresh at step 101, trains at 1e-5 first and reaches 1e-6 at step 200."""
+    import torch
+    from hydra import compose, initialize_config_dir
+    from omegaconf import OmegaConf
+
+    from verl.utils.torch_functional import get_cosine_schedule_with_warmup
+
+    with initialize_config_dir(config_dir=str(ROOT / "arggym_verl/config"), version_base=None):
+        matched, cont = (compose(config_name=n, overrides=["hydra.searchpath=[pkg://verl.trainer.config]"])
+                         for n in ("arggym-qwen3.5-4b-v3-lr3e-5-matched", "arggym-qwen3.5-4b-v3-lr3e-5-matched-cont"))
+    old, new = (_flat(OmegaConf.to_container(c, resolve=False)) for c in (matched, cont))
+    changed = {k for k in old.keys() | new.keys() if old.get(k, "absent") != new.get(k, "absent")}
+    assert changed == {"actor_rollout_ref.actor.optim.lr", "actor_rollout_ref.actor.optim.lr_warmup_steps",
+                       "actor_rollout_ref.actor.optim.total_training_steps",
+                       "actor_rollout_ref.actor.checkpoint.load_contents", "trainer.val_before_train",
+                       "trainer.total_training_steps", "trainer.experiment_name"}
+    o = cont.actor_rollout_ref.actor.optim
+    assert (o.lr, o.lr_warmup_steps, o.total_training_steps, o.min_lr_ratio) == (1e-5, 0, 100, 0.1)
+    assert cont.trainer.total_training_steps == 200
+    assert list(cont.actor_rollout_ref.actor.checkpoint.load_contents) == ["model", "optimizer"]
+
+    opt = torch.optim.SGD([torch.zeros(1, requires_grad=True)], lr=o.lr)
+    sched = get_cosine_schedule_with_warmup(opt, o.lr_warmup_steps, o.total_training_steps,
+                                            min_lr_ratio=o.min_lr_ratio, zero_indexed_step=o.zero_indexed_step)
+    lrs = []
+    for _ in range(100):  # steps 101-200: train at the current LR, then step the scheduler
+        lrs.append(opt.param_groups[0]["lr"])
+        opt.step()
+        sched.step()
+    assert lrs[0] > 0.999e-5 and abs(lrs[-1] - 1e-6) < 1e-9 and lrs == sorted(lrs, reverse=True)
+
+
 def test_v3_lr3e5_matched_is_the_3e5_run_with_the_trainer_matching_the_sampler():
     """The matched run is v3 at 3e-5 but for actor.match_sampler (penalty and mask), a looser
     rollout_corr/kl stop and its name.
