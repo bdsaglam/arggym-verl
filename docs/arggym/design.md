@@ -279,6 +279,14 @@ hyperparameters:
   the full distribution's; `actor/sampler_entropy`, from the old-log-prob pass,
   is the sampled distribution's, and its absence fails the step.
 
+- `fsdp_checkpoint_manager.py`, `load_checkpoint`: when a run loads a checkpoint's
+  model and optimizer but not its scheduler (`load_contents: [model, optimizer]`),
+  the optimizer takes the fresh scheduler's LR instead of the one saved with it.
+  The continuation run (`-matched-cont`) starts at its own LR this way.
+- `ray_trainer.py`: the legacy `RayPPOTrainer` keeps a schedule length the config
+  sets. Not on these runs' path; the V1 trainer they use sets the length to
+  `trainer.total_training_steps`.
+
 ## Repo and environment
 
 The repo follows verl's install guide (`docs/start/install.rst`): run from the
@@ -1004,3 +1012,48 @@ completion length down from ~19k to ~10k, and completions ending in loops of a
 repeated word. The draw entropy stayed at 4.00-4.03 nats throughout, and 20% of
 groups on average had no signal. The configuration in this repository answers
 this run (section "ArgGYM run").
+
+## Results: ArgGYM, the matched run
+
+The paper's checkpoint comes from two launches on three A100 80GB GPUs, verl at
+`ca419d04`:
+
+1. `arggym-qwen3.5-4b-v3-lr3e-5-matched`, steps 1-100: v3 at a peak LR of 3e-5
+   (3 warmup steps, cosine to 3e-6) with the matched trainer
+   ("Entropy drift and the matched trainer"), KL coefficient 0.
+2. `arggym-qwen3.5-4b-v3-lr3e-5-matched-cont`, steps 101-200: seeded from step
+   100's adapter and optimizer state (`scripts/arggym/seed_from.sh`), peak LR
+   1e-5 with no warmup and a cosine toward 1e-6 over 200 steps, so 9.1e-6 at
+   step 140 and about 5.5e-6 at step 200.
+
+Dev success (96 rows x 8 samples, 65,536-token cap, the card's sampling); the
+95% intervals are paired bootstraps over the 96 rows:
+
+| Step | Base | 20 | 40 | 60 | 80 | 100 | 120 | 140 | 160 | 180 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Dev | 0.309 | 0.418 | 0.447 | 0.527 | 0.569 | 0.539 | 0.572 | 0.613 | 0.611 | 0.641 |
+
+The paper evaluates step 140: +0.31 over the base (CI +0.25 to +0.37) and +0.04
+over step 80 (CI +0.01 to +0.08). Its dev success by task:
+
+| Task | Base | Step 140 |
+|---|---|---|
+| attack | 0.25 | 0.88 |
+| attack_defense | 0.33 | 0.94 |
+| claim_chain | 0.73 | 0.78 |
+| counter_argument | 0.27 | 0.91 |
+| counter_argument_strict | 0.31 | 0.83 |
+| defeat_diagnosis | 0.34 | 0.38 |
+| defence | 0.30 | 0.84 |
+| formalization | 0.12 | 0.38 |
+| perturbation | 0.03 | 0.20 |
+| preference_construction | 0.47 | 0.48 |
+| semantics_query | 0.14 | 0.25 |
+| status_query | 0.41 | 0.50 |
+
+Through step 180, entropy stayed between 0.52 and 0.64, `rollout_corr/kl` at
+0.0004 and `served/track` at 0.98-0.99 after the first steps. Training
+truncation averaged 8% over steps 45-100 (at most 19%) and 2.6% over steps
+121-180; completions average 22-31k tokens. A step takes 73-78 minutes and a dev
+evaluation 1-2 hours; reaching step 140 took about 208 hours, 620 GPU-hours.
+

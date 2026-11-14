@@ -5,16 +5,15 @@ This repository trains language models with GRPO and a LoRA adapter on
 [verl](https://github.com/volcengine/verl) v0.9.1's own trainer: its async V1
 trainer (`colocate_async`), token-in/token-out rollouts through vLLM, and its
 LoRA recipe (`examples/tuning/lora/run_qwen3_8b_fsdp.sh`, LR from verl's LoRA
-guide). It is upstream verl plus one package, `arggym_verl/`, and two small
+guide). It is upstream verl plus one package, `arggym_verl/`, and a few small
 patches to verl. It runs two tasks:
 
 - **GSM8K hard control** (Qwen3-0.6B, 2 GPUs): GSM8K questions the base model
   solves 2 to 6 times in 8. A task GRPO is known to move, to check the pipeline.
-- **ArgGYM** (Qwen3.5-4B, 3 GPUs): the task of ArgGYM's experiment 003, 57
-  (task, level) cells for training and all 96 for dev, prompts drawn by a
-  pass-rate curriculum. Its v3 config trains on 82 cells up to level 12, with
-  partial credit for near misses on four tasks and a curriculum that balances
-  tasks; dev stays the 96 rows.
+- **ArgGYM** (Qwen3.5-4B, 3 GPUs): 82 (task, level) cells of levels 1-12 for
+  training (8,200 problems), prompts drawn by a pass-rate curriculum, partial
+  credit for near misses on four tasks, and a 96-row dev set of levels 1-8.
+  The paper's checkpoint is step 140 of the matched run (below).
 
 The design, every hyperparameter and its source, and the full results are in
 [docs/arggym/design.md](docs/arggym/design.md). verl's own README is
@@ -22,28 +21,28 @@ The design, every hyperparameter and its source, and the full results are in
 
 ## Results
 
-GSM8K hard control, Qwen3-0.6B, dev success over 200 rows x 4 samples
-(`val-core/gsm8k/acc/mean@4`), 100 steps:
+ArgGYM, Qwen3.5-4B: dev success over 96 rows x 8 samples, with the model card's
+sampling and a 65,536-token cap. Steps 1-100 are the matched run
+(`arggym-qwen3.5-4b-v3-lr3e-5-matched`), steps 101-200 its continuation
+(`arggym-qwen3.5-4b-v3-lr3e-5-matched-cont`):
+
+| Step | Base | 20 | 40 | 60 | 80 | 100 | 120 | 140 | 160 | 180 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Dev | 0.309 | 0.418 | 0.447 | 0.527 | 0.569 | 0.539 | 0.572 | **0.613** | 0.611 | 0.641 |
+
+The paper evaluates step 140: +0.31 over the base model (paired bootstrap 95%
+CI +0.25 to +0.37). Throughout, the trainer and vLLM agree
+(`rollout_corr/kl` 0.0004, importance-weight ESS 0.999) and vLLM provably
+serves the trained adapter (`served/track` 0.98-0.99). Per-task results,
+training curves and the earlier runs that led to this recipe are in design.md,
+"Results".
+
+GSM8K hard control, Qwen3-0.6B, dev success over 200 rows x 4 samples, 100
+steps:
 
 | Step | 0 | 10 | 20 | 30 | 40 | 50 | 60 | 70 | 80 | 90 | 100 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | Dev | 0.610 | 0.609 | 0.644 | 0.645 | 0.670 | 0.663 | 0.666 | 0.696 | 0.689 | 0.700 | 0.733 |
-
-ArgGYM, Qwen3.5-4B, dev success over 96 rows x 2 samples
-(`val-core/arggym/acc/mean@2`; one standard error is about 0.035), with an
-earlier recipe (LR 3e-5, the card's sampling in training) and prompts drawn
-uniformly from the 57 training cells, read at step 41 of 100. A run of the same
-recipe with the curriculum destabilised after step 58; the configuration in this
-repository is the recipe that answers it, and its run is pending
-(design.md, "Results: ArgGYM, curriculum").
-
-| Step | 0 | 10 | 20 | 30 | 40 |
-|---|---|---|---|---|---|
-| Dev | 0.286 | 0.328 | 0.406 | 0.396 | 0.484 |
-
-In both runs the trainer and vLLM agree (no phantom clipping, importance-weight
-ESS 0.96 or above) and vLLM provably serves the trained adapter (`served/track`
-near 1 or above). design.md, "Results", has the detail.
 
 ## Requirements
 
@@ -81,18 +80,27 @@ CUDA_VISIBLE_DEVICES= .venv/bin/python -m pytest -q arggym_verl/tests
 RUN=smoke-gsm8k CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b \
     trainer.total_training_steps=5 trainer.resume_mode=disable
 
-# The two runs.
+# The GSM8K control.
 CUDA_VISIBLE_DEVICES=0,1 scripts/arggym/run.sh gsm8k-hard-qwen3-0.6b
-CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b
 
-# ArgGYM v3.
-RUN=arggym-qwen3.5-4b-v3 CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b-v3
+# The paper's ArgGYM run: steps 1-100, then the continuation from step 100 to 200.
+CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b-v3-lr3e-5-matched
+scripts/arggym/seed_from.sh outputs/arggym-qwen3.5-4b-v3-lr3e-5-matched \
+    outputs/arggym-qwen3.5-4b-v3-lr3e-5-matched-cont 100
+CUDA_VISIBLE_DEVICES=0,1,2 scripts/arggym/run.sh arggym-qwen3.5-4b-v3-lr3e-5-matched-cont
+
+# A checkpoint as a PEFT adapter and a merged bf16 model (CPU only).
+.venv/bin/python scripts/arggym/export_lora.py \
+    --run outputs/arggym-qwen3.5-4b-v3-lr3e-5-matched-cont --step 140 --no-verify
 ```
 
+If the continuation crashes and is relaunched, add
+`actor_rollout_ref.actor.checkpoint.load_contents=[model,optimizer,extra]` so it
+resumes its own scheduler too.
+
 On A100s a GSM8K step takes about 3.5 minutes and a dev evaluation 6 to 14
-(the reported run stopped at step 100 of the config's 200), and an ArgGYM step
-about 50 minutes (estimated; longer in the first steps, where completions are
-longest) and a dev evaluation 1 to 2 hours; its 100 steps take about 4 days.
+(the reported run stopped at step 100 of the config's 200), and a step of the paper's ArgGYM run
+73-78 minutes and a dev evaluation 1 to 2 hours; 100 steps take about 6 days.
 Start runs in tmux or similar.
 
 `run.sh` takes a config name under `arggym_verl/config/` and any Hydra overrides
@@ -106,6 +114,8 @@ name); a run with the same `RUN` resumes from its latest checkpoint.
 | `gsm8k-hard-qwen3-0.6b` | Qwen3-0.6B @ `c1899de` | 2 | 64 prompts x 5 completions, one batch generated ahead | 200 |
 | `arggym-qwen3.5-4b` | Qwen3.5-4B @ `851bf6e` | 3 | 18 prompts x 16 completions, each step on its own batch | 100 |
 | `arggym-qwen3.5-4b-v3` | as above | 3 | as above | 100 |
+| `arggym-qwen3.5-4b-v3-lr3e-5-matched` | as above | 3 | as above | 100 |
+| `arggym-qwen3.5-4b-v3-lr3e-5-matched-cont` | as above | 3 | as above | 101-200 |
 
 Both use verl's LoRA recipe: rank 64, alpha 32, all linear layers, token-mean
 loss, clip 0.2, two optimizer steps per batch, truncated importance sampling
@@ -132,6 +142,15 @@ trains with the model card's sampling (top_p 0.95, top_k 20, presence penalty 1.
   that gives each task a share by its best cell rather than by its number of
   cells. Dev is the same 96 rows, and a run that stops itself is also evaluated
   at the stop step (design.md, "ArgGYM run", v3).
+
+- The matched run (the paper's) is v3 at a peak LR of 3e-5 (3 warmup steps,
+  cosine to 3e-6), KL coefficient 0, with the trainer computing its log-probs
+  under the rollouts' sampling: the presence penalty and the top-k/top-p mask
+  (`actor.match_sampler`). Without that match, entropy drifted upward in every
+  run (design.md, "Entropy drift and the matched trainer").
+- Its continuation resumes step 100's adapter and optimizer state at a peak LR
+  of 1e-5 with no warmup and a cosine toward 1e-6 over 200 steps (9.1e-6 at
+  step 140, about 5.5e-6 at step 200).
 
 The model paths point into the Hugging Face cache (`HF_HUB_CACHE`, which
 `run.sh` sets from your Hugging Face settings).
@@ -270,7 +289,8 @@ arggym_verl/            our package
   tasks/                task configs: the rows each run trains and evaluates on
   vendor/               ArgGYM's training glue, vendored (MIT; see below)
   tests/                CPU tests; fixtures/ are outputs of ArgGYM's own code
-scripts/arggym/         setup.sh, prepare_data.sh, run.sh, write_fixtures.py
+scripts/arggym/         setup.sh, prepare_data.sh, run.sh, seed_from.sh, export_lora.py,
+                        watch_verl.py, write_fixtures.py
 data/                   screen, pool dev split, prior, manifests (parquet is generated)
 docs/arggym/design.md   design, hyperparameters, results, known gaps
 verl/ examples/ ...     upstream verl v0.9.1
@@ -291,18 +311,26 @@ checkout after re-vendoring.
 
 The history is upstream verl's up to the v0.9.1 tag (`1876b06d`), then our
 commits. Outside `arggym_verl/`, `scripts/arggym/`, `data/` and `docs/arggym/`,
-two commits change verl:
+our commits change verl in these places (design.md, "Patches to verl"):
 
 - `verl/workers/rollout/vllm_rollout/vllm_async_server.py`: refuse a LoRA request
   when the adapter is not loaded, checked after admission (the served-policy
   guard above).
+- `verl/utils/sampler_logprobs.py`, `verl/workers/engine/fsdp/transformer_impl.py`,
+  `verl/workers/config/actor.py`, `verl/trainer/config/actor/actor.yaml` (and the
+  generated configs): `actor.match_sampler`, the trainer's log-probs under the
+  rollouts' presence penalty and top-k/top-p mask. Off by default.
+- `verl/utils/checkpoint/fsdp_checkpoint_manager.py`: a run that loads a
+  checkpoint's model and optimizer but not its scheduler trains at its own
+  scheduler's LR.
+- `verl/trainer/ppo/ray_trainer.py`: the legacy trainer keeps a schedule length
+  the config sets (not on these runs' path).
 - `verl/trainer/ppo/v1/trainer_separate_async.py`: drop an invalid `flush=True`
   from a logger call (not on these runs' path).
 
 To move to a newer verl, rebase our commits onto its tag
 (`git remote add upstream https://github.com/volcengine/verl.git`, then
-`git fetch upstream --tags && git rebase --onto <tag> v0.9.1`), resolve the two
-patches, rerun `scripts/arggym/setup.sh` (the lock and the flash-attn wheel URL
+`git fetch upstream --tags && git rebase --onto <tag> v0.9.1`), resolve the patches, rerun `scripts/arggym/setup.sh` (the lock and the flash-attn wheel URL
 change with verl), and run the CPU tests. Several tests pin behaviour read from
 verl's code (step order, batch padding, the LoRA recipe's values), so a verl
 change that matters fails there first.
