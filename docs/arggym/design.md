@@ -1057,6 +1057,9 @@ Through step 200, entropy stayed between 0.51 and 0.64, `rollout_corr/kl` at
 truncation averaged 8% over steps 45-100 (at most 19%) and 2.5% over steps
 121-200; completions average 22-31k tokens. A step takes 73-78 minutes and a dev
 evaluation 1-2 hours; reaching step 140 took about 208 hours, 620 GPU-hours.
+Steps 141-200 took 78.5 hours more (72.9 hours of training steps, the rest the dev
+evaluations at 160 and 180 and checkpoint saves), so the 200-step run took about
+860 GPU-hours.
 
 On ArgGYM's lite test set (1,440 problems, 120 per task; ArgGYM's eval harness,
 vLLM 0.29, the card's sampling, 65,536-token cap), step 200 reaches 53.6% and

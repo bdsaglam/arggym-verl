@@ -143,7 +143,8 @@ reward:
   # except that a finished failure on a partial_tasks task is paid
   # partial_weight * max(0, (s - b) / (1 - b)), s the scorer's partial score and b
   # its floor on the row's (task, level). native: the scorer's score on every task.
-  # Dev, the curriculum and checkpoint selection count exact success in every mode.
+  # Dev and checkpoint selection count exact success in every mode. The curriculum does
+  # too, except under partial, where it counts the paid reward on partial_tasks.
   mode: binary
   # Below 1, so an exact answer is always paid more than a near miss.
   partial_weight: 0.3
