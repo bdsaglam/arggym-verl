@@ -12,7 +12,7 @@
 # starts at its own step 0 at step 101. verl's V1 trainer sets the schedule's length to
 # trainer.total_training_steps (verl/trainer/ppo/v1/trainer_base.py), so the cosine runs from
 # 1e-5 toward 1e-6 (min_lr_ratio 0.1) over 200 steps: 9.98e-6 at step 101, 9.1e-6 at step 140,
-# about 5.5e-6 at step 200.
+# 5.4e-6 at step 200.
 
 defaults:
   - arggym-qwen3.5-4b-v3-lr3e-5-matched

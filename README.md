@@ -26,12 +26,15 @@ sampling and a 65,536-token cap. Steps 1-100 are the matched run
 (`arggym-qwen3.5-4b-v3-lr3e-5-matched`), steps 101-200 its continuation
 (`arggym-qwen3.5-4b-v3-lr3e-5-matched-cont`):
 
-| Step | Base | 20 | 40 | 60 | 80 | 100 | 120 | 140 | 160 | 180 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Dev | 0.309 | 0.418 | 0.447 | 0.527 | 0.569 | 0.539 | 0.572 | **0.613** | 0.611 | 0.641 |
+| Step | Base | 20 | 40 | 60 | 80 | 100 | 120 | 140 | 160 | 180 | 200 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Dev | 0.309 | 0.418 | 0.447 | 0.527 | 0.569 | 0.539 | 0.572 | **0.613** | 0.611 | 0.641 | 0.645 |
 
 The paper evaluates step 140: +0.31 over the base model (paired bootstrap 95%
-CI +0.25 to +0.37). Throughout, the trainer and vLLM agree
+CI +0.25 to +0.37). The last checkpoint, step 200, is published as
+[bdsaglam/Qwen3.5-4B-ArgGYM-GRPO-step200-LoRA](https://huggingface.co/bdsaglam/Qwen3.5-4B-ArgGYM-GRPO-step200-LoRA);
+on ArgGYM's lite test set (1,440 problems, two seeds) it reaches 52.8% complete-task
+success against 22.4% for the base model. Throughout, the trainer and vLLM agree
 (`rollout_corr/kl` 0.0004, importance-weight ESS 0.999) and vLLM provably
 serves the trained adapter (`served/track` 0.98-0.99). Per-task results,
 training curves and the earlier runs that led to this recipe are in design.md,
@@ -150,7 +153,7 @@ trains with the model card's sampling (top_p 0.95, top_k 20, presence penalty 1.
   run (design.md, "Entropy drift and the matched trainer").
 - Its continuation resumes step 100's adapter and optimizer state at a peak LR
   of 1e-5 with no warmup and a cosine toward 1e-6 over 200 steps (9.1e-6 at
-  step 140, about 5.5e-6 at step 200).
+  step 140, 5.4e-6 at step 200).
 
 The model paths point into the Hugging Face cache (`HF_HUB_CACHE`, which
 `run.sh` sets from your Hugging Face settings).

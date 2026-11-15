@@ -1024,36 +1024,46 @@ The paper's checkpoint comes from two launches on three A100 80GB GPUs, verl at
 2. `arggym-qwen3.5-4b-v3-lr3e-5-matched-cont`, steps 101-200: seeded from step
    100's adapter and optimizer state (`scripts/arggym/seed_from.sh`), peak LR
    1e-5 with no warmup and a cosine toward 1e-6 over 200 steps, so 9.1e-6 at
-   step 140 and about 5.5e-6 at step 200.
+   step 140 and 5.4e-6 at step 200.
 
 Dev success (96 rows x 8 samples, 65,536-token cap, the card's sampling); the
 95% intervals are paired bootstraps over the 96 rows:
 
-| Step | Base | 20 | 40 | 60 | 80 | 100 | 120 | 140 | 160 | 180 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Dev | 0.309 | 0.418 | 0.447 | 0.527 | 0.569 | 0.539 | 0.572 | 0.613 | 0.611 | 0.641 |
+| Step | Base | 20 | 40 | 60 | 80 | 100 | 120 | 140 | 160 | 180 | 200 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Dev | 0.309 | 0.418 | 0.447 | 0.527 | 0.569 | 0.539 | 0.572 | 0.613 | 0.611 | 0.641 | 0.645 |
 
 The paper evaluates step 140: +0.31 over the base (CI +0.25 to +0.37) and +0.04
-over step 80 (CI +0.01 to +0.08). Its dev success by task:
+over step 80 (CI +0.01 to +0.08). Step 200 adds +0.03 over step 140 (CI +0.00
+to +0.06) and ties step 180 (+0.004, CI -0.03 to +0.03). Dev success by task:
 
-| Task | Base | Step 140 |
-|---|---|---|
-| attack | 0.25 | 0.88 |
-| attack_defense | 0.33 | 0.94 |
-| claim_chain | 0.73 | 0.78 |
-| counter_argument | 0.27 | 0.91 |
-| counter_argument_strict | 0.31 | 0.83 |
-| defeat_diagnosis | 0.34 | 0.38 |
-| defence | 0.30 | 0.84 |
-| formalization | 0.12 | 0.38 |
-| perturbation | 0.03 | 0.20 |
-| preference_construction | 0.47 | 0.48 |
-| semantics_query | 0.14 | 0.25 |
-| status_query | 0.41 | 0.50 |
+| Task | Base | Step 140 | Step 200 |
+|---|---|---|---|
+| attack | 0.25 | 0.88 | 0.98 |
+| attack_defense | 0.33 | 0.94 | 0.97 |
+| claim_chain | 0.73 | 0.78 | 0.66 |
+| counter_argument | 0.27 | 0.91 | 0.95 |
+| counter_argument_strict | 0.31 | 0.83 | 0.91 |
+| defeat_diagnosis | 0.34 | 0.38 | 0.38 |
+| defence | 0.30 | 0.84 | 0.94 |
+| formalization | 0.12 | 0.38 | 0.39 |
+| perturbation | 0.03 | 0.20 | 0.33 |
+| preference_construction | 0.47 | 0.48 | 0.45 |
+| semantics_query | 0.14 | 0.25 | 0.22 |
+| status_query | 0.41 | 0.50 | 0.56 |
 
-Through step 180, entropy stayed between 0.52 and 0.64, `rollout_corr/kl` at
+Through step 200, entropy stayed between 0.51 and 0.64, `rollout_corr/kl` at
 0.0004 and `served/track` at 0.98-0.99 after the first steps. Training
-truncation averaged 8% over steps 45-100 (at most 19%) and 2.6% over steps
-121-180; completions average 22-31k tokens. A step takes 73-78 minutes and a dev
+truncation averaged 8% over steps 45-100 (at most 19%) and 2.5% over steps
+121-200; completions average 22-31k tokens. A step takes 73-78 minutes and a dev
 evaluation 1-2 hours; reaching step 140 took about 208 hours, 620 GPU-hours.
+
+On ArgGYM's lite test set (1,440 problems, 120 per task; ArgGYM's eval harness,
+vLLM 0.29, the card's sampling, 65,536-token cap), step 200 reaches 53.6% and
+52.0% complete-task success over two seeds, against 22.4% for the base model:
++30.5 points (paired bootstrap 95% CI +28.0 to +33.1). Most of the gain is on the
+construction tasks (80% against 26.5%); the analysis tasks reach 25.6% against
+18.2%, and claim_chain does not improve (-2.9, CI -11.7 to +5.8). Truncation at
+the cap falls from 8.3% to 0.7%. The step-200 adapter is
+[bdsaglam/Qwen3.5-4B-ArgGYM-GRPO-step200-LoRA](https://huggingface.co/bdsaglam/Qwen3.5-4B-ArgGYM-GRPO-step200-LoRA).
 
